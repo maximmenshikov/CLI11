@@ -1,3 +1,9 @@
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "app_helper.hpp"
 #include <map>
 
@@ -26,7 +32,7 @@ static_assert(CLI::detail::pair_adaptor<std::map<int, int>>::value == true, "Sho
 static_assert(CLI::detail::pair_adaptor<std::vector<std::pair<int, int>>>::value == true, "Should have pairs");
 
 TEST_F(TApp, SimpleMaps) {
-    int value;
+    int value{0};
     std::map<std::string, int> map = {{"one", 1}, {"two", 2}};
     auto opt = app.add_option("-s,--set", value)->transform(CLI::Transformer(map));
     args = {"-s", "one"};
@@ -306,7 +312,7 @@ TEST_F(TApp, SimiShortcutSets) {
 }
 
 TEST_F(TApp, SetFromCharStarArrayVector) {
-    constexpr const char *names[] = {"one", "two", "three"};
+    constexpr const char *names[3]{"one", "two", "three"};
     std::string value;
     auto opt = app.add_option("-s,--set", value)
                    ->check(CLI::IsMember{std::vector<std::string>(std::begin(names), std::end(names))});
@@ -319,7 +325,7 @@ TEST_F(TApp, SetFromCharStarArrayVector) {
 }
 
 TEST_F(TApp, OtherTypeSets) {
-    int value;
+    int value{0};
     std::vector<int> set = {2, 3, 4};
     auto opt = app.add_option("--set", value)->check(CLI::IsMember(set));
     args = {"--set", "3"};
@@ -353,7 +359,7 @@ TEST_F(TApp, OtherTypeSets) {
 }
 
 TEST_F(TApp, NumericalSets) {
-    int value;
+    int value{0};
     auto opt = app.add_option("-s,--set", value)->check(CLI::IsMember{std::set<int>({1, 2, 3})});
     args = {"-s", "1"};
     run();
@@ -366,7 +372,7 @@ TEST_F(TApp, NumericalSets) {
 // Converted original set tests
 
 TEST_F(TApp, SetWithDefaults) {
-    int someint = 2;
+    int someint{2};
     app.add_option("-a", someint, "", true)->check(CLI::IsMember({1, 2, 3, 4}));
 
     args = {"-a1", "-a2"};
@@ -375,7 +381,7 @@ TEST_F(TApp, SetWithDefaults) {
 }
 
 TEST_F(TApp, SetWithDefaultsConversion) {
-    int someint = 2;
+    int someint{2};
     app.add_option("-a", someint, "", true)->check(CLI::IsMember({1, 2, 3, 4}));
 
     args = {"-a", "hi"};
@@ -442,7 +448,7 @@ TEST_F(TApp, InCaselessSetWithDefault) {
 
 TEST_F(TApp, InIntSet) {
 
-    int choice;
+    int choice{0};
     app.add_option("-q,--quick", choice)->check(CLI::IsMember({1, 2, 3}));
 
     args = {"--quick", "2"};
@@ -456,7 +462,7 @@ TEST_F(TApp, InIntSet) {
 
 TEST_F(TApp, InIntSetWindows) {
 
-    int choice;
+    int choice{0};
     app.add_option("-q,--quick", choice)->check(CLI::IsMember({1, 2, 3}));
     app.allow_windows_style_options();
     args = {"/q", "2"};
@@ -473,7 +479,7 @@ TEST_F(TApp, InIntSetWindows) {
 
 TEST_F(TApp, FailSet) {
 
-    int choice;
+    int choice{0};
     app.add_option("-q,--quick", choice)->check(CLI::IsMember({1, 2, 3}));
 
     args = {"--quick", "3", "--quick=2"};
@@ -485,7 +491,7 @@ TEST_F(TApp, FailSet) {
 
 TEST_F(TApp, FailMutableSet) {
 
-    int choice;
+    int choice{0};
     auto vals = std::shared_ptr<std::set<int>>(new std::set<int>({1, 2, 3}));
     app.add_option("-q,--quick", choice)->check(CLI::IsMember(vals));
     app.add_option("-s,--slow", choice, "", true)->check(CLI::IsMember(vals));
@@ -508,11 +514,11 @@ TEST_F(TApp, InSetIgnoreCase) {
 
     args = {"--quick", "two"};
     run();
-    EXPECT_EQ("Two", choice); // Keeps caps from set
+    EXPECT_EQ("Two", choice);  // Keeps caps from set
 
     args = {"--quick", "ThrEE"};
     run();
-    EXPECT_EQ("THREE", choice); // Keeps caps from set
+    EXPECT_EQ("THREE", choice);  // Keeps caps from set
 
     args = {"--quick", "four"};
     EXPECT_THROW(run(), CLI::ValidationError);
@@ -533,11 +539,11 @@ TEST_F(TApp, InSetIgnoreCaseMutableValue) {
 
     args = {"--quick", "two"};
     run();
-    EXPECT_EQ("Two", choice); // Keeps caps from set
+    EXPECT_EQ("Two", choice);  // Keeps caps from set
 
     args = {"--quick", "ThrEE"};
     run();
-    EXPECT_EQ("THREE", choice); // Keeps caps from set
+    EXPECT_EQ("THREE", choice);  // Keeps caps from set
 
     options.clear();
     args = {"--quick", "ThrEE"};
@@ -556,16 +562,16 @@ TEST_F(TApp, InSetIgnoreCasePointer) {
 
     args = {"--quick", "two"};
     run();
-    EXPECT_EQ("Two", choice); // Keeps caps from set
+    EXPECT_EQ("Two", choice);  // Keeps caps from set
 
     args = {"--quick", "ThrEE"};
     run();
-    EXPECT_EQ("THREE", choice); // Keeps caps from set
+    EXPECT_EQ("THREE", choice);  // Keeps caps from set
 
     delete options;
     args = {"--quick", "ThrEE"};
     run();
-    EXPECT_EQ("THREE", choice); // this does not throw a segfault
+    EXPECT_EQ("THREE", choice);  // this does not throw a segfault
 
     args = {"--quick", "four"};
     EXPECT_THROW(run(), CLI::ValidationError);
@@ -600,11 +606,11 @@ TEST_F(TApp, InSetIgnoreUnderscore) {
 
     args = {"--quick", "optiontwo"};
     run();
-    EXPECT_EQ("option_two", choice); // Keeps underscore from set
+    EXPECT_EQ("option_two", choice);  // Keeps underscore from set
 
     args = {"--quick", "_option_thr_ee"};
     run();
-    EXPECT_EQ("optionthree", choice); // no underscore
+    EXPECT_EQ("optionthree", choice);  // no underscore
 
     args = {"--quick", "Option4"};
     EXPECT_THROW(run(), CLI::ValidationError);
@@ -626,11 +632,11 @@ TEST_F(TApp, InSetIgnoreCaseUnderscore) {
 
     args = {"--quick", "OptionTwo"};
     run();
-    EXPECT_EQ("option_two", choice); // Keeps underscore and case from set
+    EXPECT_EQ("option_two", choice);  // Keeps underscore and case from set
 
     args = {"--quick", "_OPTION_thr_ee"};
     run();
-    EXPECT_EQ("OptionThree", choice); // no underscore
+    EXPECT_EQ("OptionThree", choice);  // no underscore
 
     args = {"--quick", "Option4"};
     EXPECT_THROW(run(), CLI::ValidationError);

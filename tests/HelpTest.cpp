@@ -1,3 +1,9 @@
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #ifdef CLI11_SINGLE_FILE
 #include "CLI11.hpp"
 #else
@@ -92,9 +98,144 @@ TEST(THelp, Hidden) {
     EXPECT_THAT(help, HasSubstr("My prog"));
     EXPECT_THAT(help, HasSubstr("-h,--help"));
     EXPECT_THAT(help, HasSubstr("Options:"));
-    EXPECT_THAT(help, HasSubstr("[something]"));
+    EXPECT_THAT(help, Not(HasSubstr("[something]")));
     EXPECT_THAT(help, Not(HasSubstr("something ")));
     EXPECT_THAT(help, Not(HasSubstr("another")));
+}
+
+TEST(THelp, deprecatedOptions) {
+    CLI::App app{"My prog"};
+
+    std::string x;
+    auto soption = app.add_option("--something", x, "My option here");
+    app.add_option("--something_else", x, "My option here");
+    std::string y;
+    app.add_option("--another", y);
+
+    CLI::deprecate_option(soption, "something_else");
+
+    std::string help = app.help();
+
+    EXPECT_THAT(help, HasSubstr("DEPRECATED"));
+    EXPECT_THAT(help, HasSubstr("something"));
+    EXPECT_NO_THROW(app.parse("--something deprecated"));
+}
+
+TEST(THelp, deprecatedOptions2) {
+    CLI::App app{"My prog"};
+
+    std::string x;
+    app.add_option("--something", x, "My option here");
+    app.add_option("--something_else", x, "My option here");
+    std::string y;
+    app.add_option("--another", y);
+
+    CLI::deprecate_option(&app, "--something");
+
+    std::string help = app.help();
+
+    EXPECT_THAT(help, HasSubstr("DEPRECATED"));
+    EXPECT_THAT(help, HasSubstr("something"));
+    EXPECT_NO_THROW(app.parse("--something deprecated"));
+}
+
+TEST(THelp, deprecatedOptions3) {
+    CLI::App app{"My prog"};
+
+    std::string x;
+    app.add_option("--something", x, "Some Description");
+    app.add_option("--something_else", x, "Some other description");
+    std::string y;
+    app.add_option("--another", y);
+
+    CLI::deprecate_option(app, "--something", "--something_else");
+
+    std::string help = app.help();
+
+    EXPECT_THAT(help, HasSubstr("DEPRECATED"));
+    EXPECT_THAT(help, HasSubstr("'--something_else' instead"));
+    EXPECT_NO_THROW(app.parse("--something deprecated"));
+}
+
+TEST(THelp, retiredOptions) {
+    CLI::App app{"My prog"};
+
+    std::string x;
+    auto opt1 = app.add_option("--something", x, "My option here");
+    app.add_option("--something_else", x, "My option here");
+    std::string y;
+    app.add_option("--another", y);
+
+    CLI::retire_option(app, opt1);
+
+    std::string help = app.help();
+
+    EXPECT_THAT(help, HasSubstr("RETIRED"));
+    EXPECT_THAT(help, HasSubstr("something"));
+
+    EXPECT_NO_THROW(app.parse("--something old"));
+}
+
+TEST(THelp, retiredOptions2) {
+    CLI::App app{"My prog"};
+
+    std::string x;
+    app.add_option("--something_else", x, "My option here");
+    std::string y;
+    app.add_option("--another", y);
+
+    CLI::retire_option(&app, "--something");
+
+    std::string help = app.help();
+
+    EXPECT_THAT(help, HasSubstr("RETIRED"));
+    EXPECT_THAT(help, HasSubstr("something"));
+    EXPECT_NO_THROW(app.parse("--something old"));
+}
+
+TEST(THelp, retiredOptions3) {
+    CLI::App app{"My prog"};
+
+    std::string x;
+    app.add_option("--something", x, "My option here");
+    app.add_option("--something_else", x, "My option here");
+    std::string y;
+    app.add_option("--another", y);
+
+    CLI::retire_option(app, "--something");
+
+    std::string help = app.help();
+
+    EXPECT_THAT(help, HasSubstr("RETIRED"));
+    EXPECT_THAT(help, HasSubstr("something"));
+
+    EXPECT_NO_THROW(app.parse("--something old"));
+}
+
+TEST(THelp, HiddenGroup) {
+    CLI::App app{"My prog"};
+    // empty option group name should be hidden
+    auto hgroup = app.add_option_group("");
+    std::string x;
+    hgroup->add_option("something", x, "My option here");
+    std::string y;
+    hgroup->add_option("--another", y);
+
+    std::string help = app.help();
+
+    EXPECT_THAT(help, HasSubstr("My prog"));
+    EXPECT_THAT(help, HasSubstr("-h,--help"));
+    EXPECT_THAT(help, HasSubstr("Options:"));
+    EXPECT_THAT(help, Not(HasSubstr("[something]")));
+    EXPECT_THAT(help, Not(HasSubstr("something ")));
+    EXPECT_THAT(help, Not(HasSubstr("another")));
+
+    hgroup->group("ghidden");
+
+    help = app.help();
+
+    EXPECT_THAT(help, HasSubstr("something "));
+    EXPECT_THAT(help, HasSubstr("another"));
 }
 
 TEST(THelp, OptionalPositionalAndOptions) {
@@ -195,7 +336,7 @@ TEST(THelp, Needs) {
 TEST(THelp, NeedsPositional) {
     CLI::App app{"My prog"};
 
-    int x, y;
+    int x{0}, y{0};
 
     CLI::Option *op1 = app.add_option("op1", x, "one");
     app.add_option("op2", y, "two")->needs(op1);
@@ -220,7 +361,7 @@ TEST(THelp, Excludes) {
 TEST(THelp, ExcludesPositional) {
     CLI::App app{"My prog"};
 
-    int x, y;
+    int x{0}, y{0};
 
     CLI::Option *op1 = app.add_option("op1", x);
     app.add_option("op2", y)->excludes(op1);
@@ -246,7 +387,7 @@ TEST(THelp, ManualSetters) {
 
     CLI::App app{"My prog"};
 
-    int x = 1;
+    int x{1};
 
     CLI::Option *op1 = app.add_option("--op", x);
     op1->default_str("12");
@@ -262,13 +403,28 @@ TEST(THelp, ManualSetters) {
     EXPECT_EQ(x, 14);
     help = app.help();
     EXPECT_THAT(help, HasSubstr("=14"));
+
+    op1->default_val(12);
+    EXPECT_EQ(x, 12);
+    help = app.help();
+    EXPECT_THAT(help, HasSubstr("=12"));
+
+    EXPECT_TRUE(op1->get_run_callback_for_default());
+    op1->run_callback_for_default(false);
+    EXPECT_FALSE(op1->get_run_callback_for_default());
+
+    op1->default_val(18);
+    // x should not be modified in this case
+    EXPECT_EQ(x, 12);
+    help = app.help();
+    EXPECT_THAT(help, HasSubstr("=18"));
 }
 
 TEST(THelp, ManualSetterOverFunction) {
 
     CLI::App app{"My prog"};
 
-    int x = 1;
+    int x{1};
 
     CLI::Option *op1 = app.add_option("--op1", x)->check(CLI::IsMember({1, 2}));
     CLI::Option *op2 = app.add_option("--op2", x)->transform(CLI::IsMember({1, 2}));
@@ -305,7 +461,7 @@ TEST(THelp, Subcom) {
     char y[] = "sub2";
 
     std::vector<char *> args = {x, y};
-    app.parse((int)args.size(), args.data());
+    app.parse(static_cast<int>(args.size()), args.data());
 
     help = app.help();
     EXPECT_THAT(help, HasSubstr("Usage: ./myprogram sub2"));
@@ -317,7 +473,7 @@ TEST(THelp, MasterName) {
     char x[] = "./myprogram";
 
     std::vector<char *> args = {x};
-    app.parse((int)args.size(), args.data());
+    app.parse(static_cast<int>(args.size()), args.data());
 
     EXPECT_THAT(app.help(), HasSubstr("Usage: MyRealName"));
 }
@@ -500,7 +656,7 @@ TEST(THelp, CustomHelp) {
 
 TEST(THelp, NextLineShouldBeAlignmentInMultilineDescription) {
     CLI::App app;
-    int i;
+    int i{0};
     const std::string first{"first line"};
     const std::string second{"second line"};
     app.add_option("-i,--int", i, first + "\n" + second);
@@ -513,7 +669,7 @@ TEST(THelp, NextLineShouldBeAlignmentInMultilineDescription) {
 TEST(THelp, NiceName) {
     CLI::App app;
 
-    int x;
+    int x{0};
     auto long_name = app.add_option("-s,--long,-q,--other,that", x);
     auto short_name = app.add_option("more,-x,-y", x);
     auto positional = app.add_option("posit", x);
@@ -565,13 +721,13 @@ TEST(Exit, ExitCodes) {
     EXPECT_EQ(0, app.exit(CLI::CallForHelp()));
     EXPECT_EQ(i, app.exit(CLI::ExtrasError({"Thing"})));
     EXPECT_EQ(42, app.exit(CLI::RuntimeError(42)));
-    EXPECT_EQ(1, app.exit(CLI::RuntimeError())); // Not sure if a default here is a good thing
+    EXPECT_EQ(1, app.exit(CLI::RuntimeError()));  // Not sure if a default here is a good thing
 }
 
 struct CapturedHelp : public ::testing::Test {
     CLI::App app{"My Test Program"};
-    std::stringstream out;
-    std::stringstream err;
+    std::stringstream out{};
+    std::stringstream err{};
 
     int run(const CLI::Error &e) { return app.exit(e, out, err); }
 
@@ -581,7 +737,7 @@ struct CapturedHelp : public ::testing::Test {
     }
 };
 
-TEST_F(CapturedHelp, Sucessful) {
+TEST_F(CapturedHelp, Successful) {
     EXPECT_EQ(run(CLI::Success()), 0);
     EXPECT_EQ(out.str(), "");
     EXPECT_EQ(err.str(), "");
@@ -675,7 +831,7 @@ TEST_F(CapturedHelp, AllOnlyError) {
     EXPECT_THAT(err.str(), Not(HasSubstr("Usage")));
 }
 
-TEST_F(CapturedHelp, RepacedError) {
+TEST_F(CapturedHelp, ReplacedError) {
     app.failure_message(CLI::FailureMessage::help);
 
     EXPECT_EQ(run(CLI::ExtrasError({"Thing"})), static_cast<int>(CLI::ExitCodes::ExtrasError));
@@ -728,7 +884,7 @@ TEST(THelp, SetDescriptionAfterCreation) {
 TEST(THelp, AccessOptionDescription) {
     CLI::App app{};
 
-    int x;
+    int x{0};
     auto opt = app.add_option("-a,--alpha", x, "My description goes here");
 
     EXPECT_EQ(opt->get_description(), "My description goes here");
@@ -737,7 +893,7 @@ TEST(THelp, AccessOptionDescription) {
 TEST(THelp, SetOptionDescriptionAfterCreation) {
     CLI::App app{};
 
-    int x;
+    int x{0};
     auto opt = app.add_option("-a,--alpha", x);
     opt->description("My description goes here");
 
@@ -748,7 +904,7 @@ TEST(THelp, SetOptionDescriptionAfterCreation) {
 TEST(THelp, CleanNeeds) {
     CLI::App app;
 
-    int x;
+    int x{0};
     auto a_name = app.add_option("-a,--alpha", x);
     app.add_option("-b,--boo", x)->needs(a_name);
 
@@ -760,7 +916,7 @@ TEST(THelp, CleanNeeds) {
 TEST(THelp, RequiredPrintout) {
     CLI::App app;
 
-    int x;
+    int x{0};
     app.add_option("-a,--alpha", x)->required();
 
     EXPECT_THAT(app.help(), HasSubstr(" REQUIRED"));
@@ -786,8 +942,8 @@ TEST(THelp, ValidatorsText) {
     CLI::App app;
 
     std::string filename;
-    int x;
-    unsigned int y;
+    int x{0};
+    unsigned int y{0};
     app.add_option("--f1", filename)->check(CLI::ExistingFile);
     app.add_option("--f3", x)->check(CLI::Range(1, 4));
     app.add_option("--f4", y)->check(CLI::Range(12));
@@ -795,7 +951,7 @@ TEST(THelp, ValidatorsText) {
     std::string help = app.help();
     EXPECT_THAT(help, HasSubstr("TEXT:FILE"));
     EXPECT_THAT(help, HasSubstr("INT in [1 - 4]"));
-    EXPECT_THAT(help, HasSubstr("UINT:INT in [0 - 12]")); // Loses UINT
+    EXPECT_THAT(help, HasSubstr("UINT:INT in [0 - 12]"));  // Loses UINT
 }
 
 TEST(THelp, ValidatorsTextCustom) {
@@ -845,7 +1001,7 @@ TEST(THelp, CombinedValidatorsText) {
     app.add_option("--f1", filename)->check(CLI::ExistingFile | CLI::ExistingDirectory);
 
     // This would be nice if it put something other than string, but would it be path or file?
-    // Can't programatically tell!
+    // Can't programmatically tell!
     // (Users can use ExistingPath, by the way)
     std::string help = app.help();
     EXPECT_THAT(help, HasSubstr("TEXT:(FILE) OR (DIR)"));
@@ -882,7 +1038,7 @@ TEST(THelp, ChangingSet) {
     CLI::App app;
 
     std::set<int> vals{1, 2, 3};
-    int val;
+    int val{0};
     app.add_option("--val", val)->check(CLI::IsMember(&vals));
 
     std::string help = app.help();
@@ -903,7 +1059,7 @@ TEST(THelp, ChangingSetDefaulted) {
     CLI::App app;
 
     std::set<int> vals{1, 2, 3};
-    int val = 2;
+    int val{2};
     app.add_option("--val", val, "")->check(CLI::IsMember(&vals))->capture_default_str();
 
     std::string help = app.help();
@@ -1008,4 +1164,54 @@ TEST(THelp, FunctionDefaultString) {
     std::string help = app.help();
 
     EXPECT_THAT(help, HasSubstr("INT=Powerful"));
+}
+
+TEST(TVersion, simple_flag) {
+
+    CLI::App app;
+
+    app.set_version_flag("-v,--version", "VERSION " CLI11_VERSION);
+
+    auto vers = app.version();
+    EXPECT_THAT(vers, HasSubstr("VERSION"));
+
+    app.set_version_flag();
+    EXPECT_TRUE(app.version().empty());
+}
+
+TEST(TVersion, callback_flag) {
+
+    CLI::App app;
+
+    app.set_version_flag("-v,--version", []() { return std::string("VERSION " CLI11_VERSION); });
+
+    auto vers = app.version();
+    EXPECT_THAT(vers, HasSubstr("VERSION"));
+
+    app.set_version_flag("-v", []() { return std::string("VERSION2 " CLI11_VERSION); });
+    vers = app.version();
+    EXPECT_THAT(vers, HasSubstr("VERSION"));
+}
+
+TEST(TVersion, parse_throw) {
+
+    CLI::App app;
+
+    app.set_version_flag("--version", CLI11_VERSION);
+
+    EXPECT_THROW(app.parse("--version"), CLI::CallForVersion);
+    EXPECT_THROW(app.parse("--version --arg2 5"), CLI::CallForVersion);
+
+    auto ptr = app.get_version_ptr();
+
+    ptr->ignore_case();
+    try {
+        app.parse("--Version");
+    } catch(const CLI::CallForVersion &v) {
+        EXPECT_STREQ(v.what(), CLI11_VERSION);
+        EXPECT_EQ(v.get_exit_code(), 0);
+        const auto &appc = app;
+        auto cptr = appc.get_version_ptr();
+        EXPECT_EQ(cptr->count(), 1U);
+    }
 }

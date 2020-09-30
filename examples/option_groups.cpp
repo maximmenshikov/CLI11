@@ -1,4 +1,12 @@
-#include "CLI/CLI.hpp"
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#include <CLI/CLI.hpp>
+#include <iostream>
+#include <string>
 
 int main(int argc, char **argv) {
 
@@ -7,9 +15,9 @@ int main(int argc, char **argv) {
 
     auto format = app.add_option_group("output_format", "formatting type for output");
     auto target = app.add_option_group("output target", "target location for the output");
-    bool csv = false;
-    bool human = false;
-    bool binary = false;
+    bool csv{false};
+    bool human{false};
+    bool binary{false};
     format->add_flag("--csv", csv, "specify the output in csv format");
     format->add_flag("--human", human, "specify the output in human readable text format");
     format->add_flag("--binary", binary, "specify the output in binary format");

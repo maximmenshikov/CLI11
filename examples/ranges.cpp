@@ -1,4 +1,12 @@
-#include "CLI/CLI.hpp"
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#include <CLI/CLI.hpp>
+#include <iostream>
+#include <vector>
 
 int main(int argc, char **argv) {
 
@@ -8,7 +16,7 @@ int main(int argc, char **argv) {
     app.add_option("--range,-R", range, "A range")->expected(-2);
 
     auto ogroup = app.add_option_group("min_max_step", "set the min max and step");
-    int min, max, step = 1;
+    int min{0}, max{0}, step{1};
     ogroup->add_option("--min,-m", min, "The minimum")->required();
     ogroup->add_option("--max,-M", max, "The maximum")->required();
     ogroup->add_option("--step,-s", step, "The step", true);

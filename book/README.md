@@ -6,7 +6,7 @@ The library was inspired the Python libraries [Plumbum] and [Click], and incorpo
 
 > Feel free to contribute to [this documentation here][CLI11Tutorial] if something can be improved!
 
-The syntax is simple and scales from a basic application to a massive physics analysis with multiple models and many parameters and switches. For example, this is a simple program that has an optional parameter that defaults to 1:
+The syntax is simple and scales from a basic application to a massive physics analysis with multiple models and many parameters and switches. For example, this is a simple program that has an optional parameter that defaults to 0:
 
 ```term
 gitbook $ ./a.out
@@ -28,7 +28,7 @@ Like any good command line application, help is provided. This program can be im
 
 [include](code/intro.cpp)
 
-[Source code](https://gitlab.com/CLIUtils/CLI11Tutorial/blob/master/code/intro.cpp)
+[Source code](https://github.com/CLIUtils/CLI11/blob/master/book/code/intro.cpp)
 
 Unlike some other libraries, this is enough to exit correctly and cleanly if help is requested or if incorrect arguments are passed. You can try this example out for yourself. To compile with GCC:
 
@@ -53,19 +53,17 @@ Reading/producing `.ini` files for configuration is also supported, as is using 
 
 CLI11 was developed at the [University of Cincinnati] in support of the [GooFit] library under [NSF Award 1414736][NSF 1414736]. It was featured in a [DIANA/HEP] meeting at CERN. Please give it a try! Feedback is always welcome.
 
-This guide was based on CLI11 1.7.
-
 [GooFit]: https://github.com/GooFit/GooFit
 [DIANA/HEP]: http://diana-hep.org
 [CLI11]: https://github.com/CLIUtils/CLI11
-[CLI11Tutorial]: https://gitlab.com/CLIUtils/CLI11Tutorial
+[CLI11Tutorial]: https://cliutils.github.io/CLI11/book
 [releases]: https://github.com/CLIUtils/CLI11/releases
 [API docs]: https://cliutils.github.io/CLI11
 [README]: https://github.com/CLIUtils/CLI11/blob/master/README.md
 [NSF 1414736]: https://nsf.gov/awardsearch/showAward?AWD_ID=1414736
 [University of Cincinnati]: http://www.uc.edu
 [Plumbum]: http://plumbum.readthedocs.io/en/latest/
-[Click]: http://click.pocoo.org/5/
+[Click]: https://click.palletsprojects.com/
 
 
 

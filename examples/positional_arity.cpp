@@ -1,4 +1,12 @@
-#include "CLI/CLI.hpp"
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#include <CLI/CLI.hpp>
+#include <iostream>
+#include <string>
 
 int main(int argc, char **argv) {
 
@@ -6,14 +14,14 @@ int main(int argc, char **argv) {
 
     auto numbers = app.add_option_group("numbers", "specify key numbers");
     auto files = app.add_option_group("files", "specify files");
-    int num1 = -1, num2 = -1;
+    int num1{-1}, num2{-1};
     numbers->add_option("num1", num1, "first number");
     numbers->add_option("num2", num2, "second number");
     std::string file1, file2;
     files->add_option("file1", file1, "first file")->required();
     files->add_option("file2", file2, "second file");
     // set a pre parse callback that turns the numbers group on or off depending on the number of arguments
-    app.preparse_callback([numbers](size_t arity) {
+    app.preparse_callback([numbers](std::size_t arity) {
         if(arity <= 2) {
             numbers->disabled();
         } else {

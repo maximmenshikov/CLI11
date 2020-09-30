@@ -1,14 +1,18 @@
-#pragma once
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
 
-// Distributed under the 3-Clause BSD License.  See accompanying
-// file LICENSE or https://github.com/CLIUtils/CLI11 for details.
+#pragma once
 
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
-#include "CLI/Error.hpp"
-#include "CLI/StringTools.hpp"
+#include "Error.hpp"
+#include "StringTools.hpp"
 
 namespace CLI {
 namespace detail {
@@ -58,7 +62,7 @@ inline bool split_windows_style(const std::string &current, std::string &name, s
 // Splits a string into multiple long and short names
 inline std::vector<std::string> split_names(std::string current) {
     std::vector<std::string> output;
-    size_t val;
+    std::size_t val;
     while((val = current.find(",")) != std::string::npos) {
         output.push_back(trim_copy(current.substr(0, val)));
         current = current.substr(val + 1);
@@ -130,5 +134,5 @@ get_names(const std::vector<std::string> &input) {
         short_names, long_names, pos_name);
 }
 
-} // namespace detail
-} // namespace CLI
+}  // namespace detail
+}  // namespace CLI

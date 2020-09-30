@@ -1,3 +1,9 @@
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "app_helper.hpp"
 
 #include "gmock/gmock.h"
@@ -23,11 +29,11 @@ TEST_F(TApp, BasicOptionGroup) {
 
 TEST_F(TApp, BasicOptionGroupExact) {
     auto ogroup = app.add_option_group("clusters");
-    int res;
+    int res{0};
     ogroup->add_option("--test1", res);
     ogroup->add_option("--test2", res);
     ogroup->add_option("--test3", res);
-    int val2;
+    int val2{0};
     app.add_option("--option", val2);
     ogroup->require_option(1);
     args = {"--test1", "5"};
@@ -47,11 +53,11 @@ TEST_F(TApp, BasicOptionGroupExact) {
 
 TEST_F(TApp, BasicOptionGroupExactTooMany) {
     auto ogroup = app.add_option_group("clusters");
-    int res;
+    int res{0};
     ogroup->add_option("--test1", res);
     ogroup->add_option("--test2", res);
     ogroup->add_option("--test3", res);
-    int val2;
+    int val2{0};
     app.add_option("--option", val2);
     ogroup->require_option(10);
     args = {"--test1", "5"};
@@ -60,11 +66,11 @@ TEST_F(TApp, BasicOptionGroupExactTooMany) {
 
 TEST_F(TApp, BasicOptionGroupMinMax) {
     auto ogroup = app.add_option_group("clusters");
-    int res;
+    int res{0};
     ogroup->add_option("--test1", res);
     ogroup->add_option("--test2", res);
     ogroup->add_option("--test3", res);
-    int val2;
+    int val2{0};
     app.add_option("--option", val2);
     ogroup->require_option(1, 1);
     args = {"--test1", "5"};
@@ -84,11 +90,11 @@ TEST_F(TApp, BasicOptionGroupMinMax) {
 
 TEST_F(TApp, BasicOptionGroupMinMaxDifferent) {
     auto ogroup = app.add_option_group("clusters");
-    int res;
+    int res{0};
     ogroup->add_option("--test1", res);
     ogroup->add_option("--test2", res);
     ogroup->add_option("--test3", res);
-    int val2;
+    int val2{0};
     app.add_option("--option", val2);
     ogroup->require_option(1, 2);
     args = {"--test1", "5"};
@@ -112,11 +118,11 @@ TEST_F(TApp, BasicOptionGroupMinMaxDifferent) {
 
 TEST_F(TApp, BasicOptionGroupMinMaxDifferentReversed) {
     auto ogroup = app.add_option_group("clusters");
-    int res;
+    int res{0};
     ogroup->add_option("--test1", res);
     ogroup->add_option("--test2", res);
     ogroup->add_option("--test3", res);
-    int val2;
+    int val2{0};
     app.add_option("--option", val2);
     ogroup->require_option(2, 1);
     EXPECT_EQ(ogroup->get_require_option_min(), 2u);
@@ -144,7 +150,7 @@ TEST_F(TApp, BasicOptionGroupMinMaxDifferentReversed) {
 
 TEST_F(TApp, BasicOptionGroupMax) {
     auto ogroup = app.add_option_group("clusters");
-    int res;
+    int res{0};
     ogroup->add_option("--test1", res);
     ogroup->add_option("--test2", res);
     ogroup->add_option("--test3", res);
@@ -168,11 +174,11 @@ TEST_F(TApp, BasicOptionGroupMax) {
 
 TEST_F(TApp, BasicOptionGroupMax1) {
     auto ogroup = app.add_option_group("clusters");
-    int res;
+    int res{0};
     ogroup->add_option("--test1", res);
     ogroup->add_option("--test2", res);
     ogroup->add_option("--test3", res);
-    int val2;
+    int val2{0};
     app.add_option("--option", val2);
     ogroup->require_option(-1);
     args = {"--test1", "5"};
@@ -192,11 +198,11 @@ TEST_F(TApp, BasicOptionGroupMax1) {
 
 TEST_F(TApp, BasicOptionGroupMin) {
     auto ogroup = app.add_option_group("clusters");
-    int res;
+    int res{0};
     ogroup->add_option("--test1", res);
     ogroup->add_option("--test2", res);
     ogroup->add_option("--test3", res);
-    int val2;
+    int val2{0};
     app.add_option("--option", val2);
     ogroup->require_option();
 
@@ -213,11 +219,11 @@ TEST_F(TApp, BasicOptionGroupMin) {
 
 TEST_F(TApp, BasicOptionGroupExact2) {
     auto ogroup = app.add_option_group("clusters");
-    int res;
+    int res{0};
     ogroup->add_option("--test1", res);
     ogroup->add_option("--test2", res);
     ogroup->add_option("--test3", res);
-    int val2;
+    int val2{0};
     app.add_option("--option", val2);
     ogroup->require_option(2);
 
@@ -237,11 +243,11 @@ TEST_F(TApp, BasicOptionGroupExact2) {
 
 TEST_F(TApp, BasicOptionGroupMin2) {
     auto ogroup = app.add_option_group("clusters");
-    int res;
+    int res{0};
     ogroup->add_option("--test1", res);
     ogroup->add_option("--test2", res);
     ogroup->add_option("--test3", res);
-    int val2;
+    int val2{0};
     app.add_option("--option", val2);
     ogroup->require_option(2, 0);
 
@@ -258,11 +264,11 @@ TEST_F(TApp, BasicOptionGroupMin2) {
 
 TEST_F(TApp, BasicOptionGroupMinMoved) {
 
-    int res;
+    int res{0};
     auto opt1 = app.add_option("--test1", res);
     auto opt2 = app.add_option("--test2", res);
     auto opt3 = app.add_option("--test3", res);
-    int val2;
+    int val2{0};
     app.add_option("--option", val2);
 
     auto ogroup = app.add_option_group("clusters");
@@ -287,11 +293,11 @@ TEST_F(TApp, BasicOptionGroupMinMoved) {
 
 TEST_F(TApp, BasicOptionGroupMinMovedAsGroup) {
 
-    int res;
+    int res{0};
     auto opt1 = app.add_option("--test1", res);
     auto opt2 = app.add_option("--test2", res);
     auto opt3 = app.add_option("--test3", res);
-    int val2;
+    int val2{0};
     app.add_option("--option", val2);
 
     auto ogroup = app.add_option_group("clusters");
@@ -315,10 +321,10 @@ TEST_F(TApp, BasicOptionGroupMinMovedAsGroup) {
 
 TEST_F(TApp, BasicOptionGroupAddFailures) {
 
-    int res;
+    int res{0};
     auto opt1 = app.add_option("--test1", res);
     app.set_config("--config");
-    int val2;
+    int val2{0};
     app.add_option("--option", val2);
 
     auto ogroup = app.add_option_group("clusters");
@@ -341,10 +347,10 @@ TEST_F(TApp, BasicOptionGroupAddFailures) {
 
 TEST_F(TApp, BasicOptionGroupScrewedUpMove) {
 
-    int res;
+    int res{0};
     auto opt1 = app.add_option("--test1", res);
     auto opt2 = app.add_option("--test2", res);
-    int val2;
+    int val2{0};
     app.add_option("--option", val2);
 
     auto ogroup = app.add_option_group("clusters");
@@ -368,18 +374,34 @@ TEST_F(TApp, InvalidOptions) {
     EXPECT_THROW(ogroup->add_option(opt), CLI::OptionNotFound);
 }
 
+TEST_F(TApp, OptionGroupInheritedOptionDefaults) {
+    app.option_defaults()->ignore_case();
+    auto ogroup = app.add_option_group("clusters");
+    int res{0};
+    ogroup->add_option("--test1", res);
+
+    args = {"--Test1", "5"};
+    run();
+    EXPECT_EQ(res, 5);
+    EXPECT_EQ(app.count_all(), 1u);
+}
+
 struct ManyGroups : public TApp {
 
-    CLI::Option_group *main;
-    CLI::Option_group *g1;
-    CLI::Option_group *g2;
-    CLI::Option_group *g3;
-    std::string name1;
-    std::string name2;
-    std::string name3;
-    std::string val1;
-    std::string val2;
-    std::string val3;
+    CLI::Option_group *main{nullptr};
+    CLI::Option_group *g1{nullptr};
+    CLI::Option_group *g2{nullptr};
+    CLI::Option_group *g3{nullptr};
+    std::string name1{};
+    std::string name2{};
+    std::string name3{};
+    std::string val1{};
+    std::string val2{};
+    std::string val3{};
+
+    ManyGroups(const ManyGroups &) = delete;
+    ManyGroups &operator=(const ManyGroups &) = delete;
+
     ManyGroups() {
         main = app.add_option_group("main", "the main outer group");
         g1 = main->add_option_group("g1", "group1 description");
@@ -436,6 +458,52 @@ TEST_F(ManyGroups, ExcludesGroup) {
     EXPECT_NO_THROW(run());
     EXPECT_FALSE(g1->remove_excludes(g1));
     EXPECT_FALSE(g1->remove_excludes(g2));
+}
+
+TEST_F(ManyGroups, NeedsGroup) {
+    remove_required();
+    // all groups needed if g1 is used
+    g1->needs(g2);
+    g1->needs(g3);
+    args = {"--name1", "test"};
+    EXPECT_THROW(run(), CLI::RequiresError);
+    // other groups should run fine
+    args = {"--name2", "test2"};
+
+    run();
+    // all three groups should be fine
+    args = {"--name1", "test", "--name2", "test2", "--name3", "test3"};
+
+    EXPECT_NO_THROW(run());
+}
+
+// test adding an option group with existing subcommands to an app
+TEST_F(TApp, ExistingSubcommandMatch) {
+    auto sshared = std::make_shared<CLI::Option_group>("documenting the subcommand", "sub1g", nullptr);
+    auto s1 = sshared->add_subcommand("sub1");
+    auto o1 = sshared->add_option_group("opt1");
+    o1->add_subcommand("sub3")->alias("sub4");
+
+    app.add_subcommand("sub1");
+
+    try {
+        app.add_subcommand(sshared);
+        // this should throw the next line should never be reached
+        EXPECT_FALSE(true);
+    } catch(const CLI::OptionAlreadyAdded &oaa) {
+        EXPECT_THAT(oaa.what(), HasSubstr("sub1"));
+    }
+    sshared->remove_subcommand(s1);
+
+    app.add_subcommand("sub3");
+    // now check that the subsubcommand overlaps
+    try {
+        app.add_subcommand(sshared);
+        // this should throw the next line should never be reached
+        EXPECT_FALSE(true);
+    } catch(const CLI::OptionAlreadyAdded &oaa) {
+        EXPECT_THAT(oaa.what(), HasSubstr("sub3"));
+    }
 }
 
 TEST_F(ManyGroups, SingleGroupError) {
@@ -503,7 +571,7 @@ TEST_F(ManyGroups, RequiredFirst) {
 }
 
 TEST_F(ManyGroups, DisableFirst) {
-    // only 1 group can be used
+    // only 1 group can be used if remove_required not used
     remove_required();
     g1->disabled();
 
@@ -521,12 +589,15 @@ TEST_F(ManyGroups, DisableFirst) {
 }
 
 TEST_F(ManyGroups, SameSubcommand) {
-    // only 1 group can be used
+    // only 1 group can be used if remove_required not used
     remove_required();
-    auto sub1 = g1->add_subcommand("sub1");
-    auto sub2 = g2->add_subcommand("sub1");
+    auto sub1 = g1->add_subcommand("sub1")->disabled();
+    auto sub2 = g2->add_subcommand("sub1")->disabled();
     auto sub3 = g3->add_subcommand("sub1");
-
+    // so when the subcommands are disabled they can have the same name
+    sub1->disabled(false);
+    sub2->disabled(false);
+    // if they are reenabled they are not checked for overlap on enabling so they can have the same name
     args = {"sub1", "sub1", "sub1"};
 
     run();
@@ -534,7 +605,6 @@ TEST_F(ManyGroups, SameSubcommand) {
     EXPECT_TRUE(*sub1);
     EXPECT_TRUE(*sub2);
     EXPECT_TRUE(*sub3);
-    /// This should be made to work at some point
     auto subs = app.get_subcommands();
     EXPECT_EQ(subs.size(), 3u);
     EXPECT_EQ(subs[0], sub1);
@@ -556,7 +626,7 @@ TEST_F(ManyGroups, SameSubcommand) {
     EXPECT_EQ(subs[2], sub3);
 }
 TEST_F(ManyGroups, CallbackOrder) {
-    // only 1 group can be used
+    // only 1 group can be used if remove_required not used
     remove_required();
     std::vector<int> callback_order;
     g1->callback([&callback_order]() { callback_order.push_back(1); });
@@ -582,6 +652,7 @@ TEST_F(ManyGroups, CallbackOrder) {
 
 // Test the fallthrough for extra arguments
 TEST_F(ManyGroups, ExtrasFallDown) {
+    // only 1 group can be used if remove_required not used
     remove_required();
 
     args = {"--test1", "--flag", "extra"};
@@ -622,14 +693,14 @@ TEST_F(ManyGroups, Moving) {
 }
 
 struct ManyGroupsPreTrigger : public ManyGroups {
-    size_t triggerMain{0u}, trigger1{87u}, trigger2{34u}, trigger3{27u};
+    std::size_t triggerMain{0u}, trigger1{87u}, trigger2{34u}, trigger3{27u};
     ManyGroupsPreTrigger() {
         remove_required();
-        app.preparse_callback([this](size_t count) { triggerMain = count; });
+        app.preparse_callback([this](std::size_t count) { triggerMain = count; });
 
-        g1->preparse_callback([this](size_t count) { trigger1 = count; });
-        g2->preparse_callback([this](size_t count) { trigger2 = count; });
-        g3->preparse_callback([this](size_t count) { trigger3 = count; });
+        g1->preparse_callback([this](std::size_t count) { trigger1 = count; });
+        g2->preparse_callback([this](std::size_t count) { trigger2 = count; });
+        g3->preparse_callback([this](std::size_t count) { trigger3 = count; });
     }
 };
 
@@ -694,8 +765,8 @@ TEST_F(ManyGroupsPreTrigger, PreTriggerTestsSubcommand) {
     g2->add_subcommand("sub2")->fallthrough();
     g3->add_subcommand("sub3")->fallthrough();
 
-    size_t subtrigger;
-    sub1->preparse_callback([&subtrigger](size_t count) { subtrigger = count; });
+    std::size_t subtrigger;
+    sub1->preparse_callback([&subtrigger](std::size_t count) { subtrigger = count; });
     args = {"sub1"};
     run();
     EXPECT_EQ(triggerMain, 1u);
@@ -715,6 +786,6 @@ TEST_F(ManyGroupsPreTrigger, PreTriggerTestsSubcommand) {
     EXPECT_EQ(triggerMain, 4u);
     EXPECT_EQ(trigger1, 1u);
     EXPECT_EQ(trigger2, 3u);
-    EXPECT_EQ(trigger3, 1u); // processes the first argument in group3 which includes the entire subcommand, which will
-                             // go until the sub1 command is given
+    EXPECT_EQ(trigger3, 1u);  // processes the first argument in group3 which includes the entire subcommand, which will
+                              // go until the sub1 command is given
 }

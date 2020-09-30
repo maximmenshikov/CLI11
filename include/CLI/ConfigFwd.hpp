@@ -1,54 +1,34 @@
-#pragma once
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
 
-// Distributed under the 3-Clause BSD License.  See accompanying
-// file LICENSE or https://github.com/CLIUtils/CLI11 for details.
+#pragma once
 
 #include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <vector>
 
-#include "CLI/Error.hpp"
-#include "CLI/StringTools.hpp"
+#include "Error.hpp"
+#include "StringTools.hpp"
 
 namespace CLI {
 
 class App;
 
-namespace detail {
-
-/// Comma separated join, adds quotes if needed
-inline std::string ini_join(std::vector<std::string> args) {
-    std::ostringstream s;
-    size_t start = 0;
-    for(const auto &arg : args) {
-        if(start++ > 0)
-            s << " ";
-
-        auto it = std::find_if(arg.begin(), arg.end(), [](char ch) { return std::isspace<char>(ch, std::locale()); });
-        if(it == arg.end())
-            s << arg;
-        else if(arg.find_first_of('\"') == std::string::npos)
-            s << '\"' << arg << '\"';
-        else
-            s << '\'' << arg << '\'';
-    }
-
-    return s.str();
-}
-
-} // namespace detail
-
 /// Holds values to load into Options
 struct ConfigItem {
     /// This is the list of parents
-    std::vector<std::string> parents;
+    std::vector<std::string> parents{};
 
     /// This is the name
-    std::string name;
+    std::string name{};
 
     /// Listing of inputs
-    std::vector<std::string> inputs;
+    std::vector<std::string> inputs{};
 
     /// The list of parents and name joined by "."
     std::string fullname() const {
@@ -61,7 +41,7 @@ struct ConfigItem {
 /// This class provides a converter for configuration files.
 class Config {
   protected:
-    std::vector<ConfigItem> items;
+    std::vector<ConfigItem> items{};
 
   public:
     /// Convert an app into a configuration
@@ -91,56 +71,61 @@ class Config {
     virtual ~Config() = default;
 };
 
-/// This converter works with INI files
-class ConfigINI : public Config {
+/// This converter works with INI/TOML files; to write INI files use ConfigINI
+class ConfigBase : public Config {
+  protected:
+    /// the character used for comments
+    char commentChar = '#';
+    /// the character used to start an array '\0' is a default to not use
+    char arrayStart = '[';
+    /// the character used to end an array '\0' is a default to not use
+    char arrayEnd = ']';
+    /// the character used to separate elements in an array
+    char arraySeparator = ',';
+    /// the character used separate the name from the value
+    char valueDelimiter = '=';
+
   public:
     std::string
     to_config(const App * /*app*/, bool default_also, bool write_description, std::string prefix) const override;
 
-    std::vector<ConfigItem> from_config(std::istream &input) const override {
-        std::string line;
-        std::string section = "default";
-
-        std::vector<ConfigItem> output;
-
-        while(getline(input, line)) {
-            std::vector<std::string> items_buffer;
-
-            detail::trim(line);
-            size_t len = line.length();
-            if(len > 1 && line[0] == '[' && line[len - 1] == ']') {
-                section = line.substr(1, len - 2);
-            } else if(len > 0 && line[0] != ';') {
-                output.emplace_back();
-                ConfigItem &out = output.back();
-
-                // Find = in string, split and recombine
-                auto pos = line.find('=');
-                if(pos != std::string::npos) {
-                    out.name = detail::trim_copy(line.substr(0, pos));
-                    std::string item = detail::trim_copy(line.substr(pos + 1));
-                    items_buffer = detail::split_up(item);
-                } else {
-                    out.name = detail::trim_copy(line);
-                    items_buffer = {"ON"};
-                }
-
-                if(detail::to_lower(section) != "default") {
-                    out.parents = {section};
-                }
-
-                if(out.name.find('.') != std::string::npos) {
-                    std::vector<std::string> plist = detail::split(out.name, '.');
-                    out.name = plist.back();
-                    plist.pop_back();
-                    out.parents.insert(out.parents.end(), plist.begin(), plist.end());
-                }
-
-                out.inputs.insert(std::end(out.inputs), std::begin(items_buffer), std::end(items_buffer));
-            }
-        }
-        return output;
+    std::vector<ConfigItem> from_config(std::istream &input) const override;
+    /// Specify the configuration for comment characters
+    ConfigBase *comment(char cchar) {
+        commentChar = cchar;
+        return this;
+    }
+    /// Specify the start and end characters for an array
+    ConfigBase *arrayBounds(char aStart, char aEnd) {
+        arrayStart = aStart;
+        arrayEnd = aEnd;
+        return this;
+    }
+    /// Specify the delimiter character for an array
+    ConfigBase *arrayDelimiter(char aSep) {
+        arraySeparator = aSep;
+        return this;
+    }
+    /// Specify the delimiter between a name and value
+    ConfigBase *valueSeparator(char vSep) {
+        valueDelimiter = vSep;
+        return this;
     }
 };
 
-} // namespace CLI
+/// the default Config is the TOML file format
+using ConfigTOML = ConfigBase;
+
+/// ConfigINI generates a "standard" INI compliant output
+class ConfigINI : public ConfigTOML {
+
+  public:
+    ConfigINI() {
+        commentChar = ';';
+        arrayStart = '\0';
+        arrayEnd = '\0';
+        arraySeparator = ' ';
+        valueDelimiter = '=';
+    }
+};
+}  // namespace CLI

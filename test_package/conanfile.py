@@ -1,5 +1,6 @@
-from conans import ConanFile, CMake
+from conans import ConanFile, CMake, tools
 import os
+
 
 class HelloTestConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
@@ -15,5 +16,6 @@ class HelloTestConan(ConanFile):
         self.copy("*.dylib*", dst="bin", src="lib")
 
     def test(self):
-        os.chdir("bin")
-        self.run(".%sexample" % os.sep)
+        if not tools.cross_building(self.settings):
+            os.chdir("bin")
+            self.run(".%sexample" % os.sep)

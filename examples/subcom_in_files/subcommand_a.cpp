@@ -1,8 +1,12 @@
-// ===================================================================
-//   subcommand_a.cpp
-// ===================================================================
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
 
 #include "subcommand_a.hpp"
+#include <iostream>
+#include <memory>
 
 /// Set up a subcommand and capture a shared_ptr to a struct that holds all its options.
 /// The variables of the struct are bound to the CLI options.

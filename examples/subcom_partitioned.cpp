@@ -1,5 +1,14 @@
-#include "CLI/CLI.hpp"
-#include "CLI/Timer.hpp"
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#include <CLI/CLI.hpp>
+#include <CLI/Timer.hpp>
+#include <iostream>
+#include <memory>
+#include <string>
 
 int main(int argc, char **argv) {
     CLI::AutoTimer("This is a timer");
@@ -10,11 +19,11 @@ int main(int argc, char **argv) {
     std::string file;
     CLI::Option *opt = impOpt->add_option("-f,--file,file", file, "File name")->required();
 
-    int count;
+    int count{0};
     CLI::Option *copt = impOpt->add_flag("-c,--count", count, "Counter")->required();
 
     CLI::App_p otherOpt = std::make_shared<CLI::App>("Other");
-    double value; // = 3.14;
+    double value{0.0};  // = 3.14;
     otherOpt->add_option("-d,--double", value, "Some Value");
 
     // add the subapps to the main one

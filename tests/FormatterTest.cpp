@@ -1,3 +1,9 @@
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #ifdef CLI11_SINGLE_FILE
 #include "CLI11.hpp"
 #else
@@ -49,7 +55,7 @@ TEST(Formatter, OptCustomize) {
     optfmt->label("REQUIRED", "(MUST HAVE)");
     app.formatter(optfmt);
 
-    int v;
+    int v{0};
     app.add_option("--opt", v, "Something")->required();
 
     std::string help = app.help();
@@ -69,7 +75,7 @@ TEST(Formatter, OptCustomizeSimple) {
     app.get_formatter()->column_width(25);
     app.get_formatter()->label("REQUIRED", "(MUST HAVE)");
 
-    int v;
+    int v{0};
     app.add_option("--opt", v, "Something")->required();
 
     std::string help = app.help();
@@ -83,16 +89,35 @@ TEST(Formatter, OptCustomizeSimple) {
               "  --opt INT (MUST HAVE)  Something\n\n");
 }
 
+TEST(Formatter, OptCustomizeOptionText) {
+    CLI::App app{"My prog"};
+
+    app.get_formatter()->column_width(25);
+
+    int v{0};
+    app.add_option("--opt", v, "Something")->option_text("(ARG)");
+
+    std::string help = app.help();
+
+    EXPECT_THAT(help, HasSubstr("(ARG)"));
+    EXPECT_EQ(help,
+              "My prog\n"
+              "Usage: [OPTIONS]\n\n"
+              "Options:\n"
+              "  -h,--help              Print this help message and exit\n"
+              "  --opt (ARG)            Something\n\n");
+}
+
 TEST(Formatter, FalseFlagExample) {
     CLI::App app{"My prog"};
 
     app.get_formatter()->column_width(25);
     app.get_formatter()->label("REQUIRED", "(MUST HAVE)");
 
-    int v;
+    int v{0};
     app.add_flag("--opt,!--no_opt", v, "Something");
 
-    bool flag;
+    bool flag{false};
     app.add_flag("!-O,--opt2,--no_opt2{false}", flag, "Something else");
 
     std::string help = app.help();
@@ -180,7 +205,7 @@ TEST(Formatter, NamelessSubInGroup) {
     CLI::App *sub = app.add_subcommand("", "This subcommand");
     CLI::App *sub2 = app.add_subcommand("sub2", "subcommand2");
     sub->add_flag("--insub", "MyFlag");
-    int val;
+    int val{0};
     sub2->add_option("pos", val, "positional");
     sub->group("group1");
     sub2->group("group1");

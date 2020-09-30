@@ -87,7 +87,7 @@ elseif(NOT CMAKE_COMPILER_IS_GNUCXX)
     message(FATAL_ERROR "Compiler is not GNU gcc! Aborting...")
 endif()
 
-set(COVERAGE_COMPILER_FLAGS "-g -O0 --coverage -fprofile-arcs -ftest-coverage"
+set(COVERAGE_COMPILER_FLAGS "-g -O0 --coverage -fprofile-arcs -ftest-coverage -fno-inline -fno-inline-small-functions -fno-default-inline"
     CACHE INTERNAL "")
 
 set(CMAKE_CXX_FLAGS_COVERAGE
@@ -170,7 +170,7 @@ function(SETUP_TARGET_FOR_COVERAGE)
         DEPENDS ${Coverage_DEPENDENCIES}
         COMMENT "Resetting code coverage counters to zero.\nProcessing code coverage counters and generating report."
     )
-    
+
     # Show where to find the lcov info report
     add_custom_command(TARGET ${Coverage_NAME} POST_BUILD
         COMMAND ;

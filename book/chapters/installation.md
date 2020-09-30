@@ -1,4 +1,4 @@
-# Installation 
+# Installation
 
 ## Single file edition
 
@@ -50,7 +50,7 @@ root:build # cmake ..
 root:build # make
 Scanning dependencies ...
 root:build # make test
-[warning]Running tests... 
+[warning]Running tests...
 Test project /CLI11/build
       Start  1: HelpersTest
  1/10 Test  #1: HelpersTest ......................   Passed    0.01 sec
@@ -86,6 +86,7 @@ For the curious, the CMake options and defaults are listed below. Most options d
 | `CLI11_SINGLE_FILE_TESTS=OFF` | Run the tests on the generated single file version as well |
 | `CLI11_EXAMPLES=ON` | Build the example programs. |
 | `CLI11_TESTING=ON` | Build the tests. |
-| `CLANG_TIDY_FIX=OFF` | Run `clang-tidy` on the examples and headers and apply fixes. (Changes source code!) Requires LLVM and CMake 3.6+. |
+| `CLI11_CLANG_TIDY=OFF` | Run `clang-tidy` on the examples and headers. Requires CMake 3.6+. |
+| `CLI11_CLANG_TIDY_OPTIONS=""` | Options to pass to `clang-tidy`, such as `-fix` (single threaded build only if applying fixes!) |
 
 [^1]: Docker is being used to create a pristine disposable environment; there is nothing special about this container. Alpine is being used because it is small, modern, and fast. Commands are similar on any other platform.

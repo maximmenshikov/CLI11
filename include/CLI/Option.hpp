@@ -1,7 +1,10 @@
-#pragma once
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
 
-// Distributed under the 3-Clause BSD License.  See accompanying
-// file LICENSE or https://github.com/CLIUtils/CLI11 for details.
+#pragma once
 
 #include <algorithm>
 #include <functional>
@@ -12,23 +15,30 @@
 #include <utility>
 #include <vector>
 
-#include "CLI/Error.hpp"
-#include "CLI/Macros.hpp"
-#include "CLI/Split.hpp"
-#include "CLI/StringTools.hpp"
-#include "CLI/Validators.hpp"
+#include "Error.hpp"
+#include "Macros.hpp"
+#include "Split.hpp"
+#include "StringTools.hpp"
+#include "Validators.hpp"
 
 namespace CLI {
 
 using results_t = std::vector<std::string>;
-using callback_t = std::function<bool(results_t)>;
+/// callback function definition
+using callback_t = std::function<bool(const results_t &)>;
 
 class Option;
 class App;
 
 using Option_p = std::unique_ptr<Option>;
-
-enum class MultiOptionPolicy : char { Throw, TakeLast, TakeFirst, Join };
+/// Enumeration of the multiOption Policy selection
+enum class MultiOptionPolicy : char {
+    Throw,      //!< Throw an error if any extra arguments were given
+    TakeLast,   //!< take only the last Expected number of arguments
+    TakeFirst,  //!< take only the first Expected number of arguments
+    Join,       //!< merge all the arguments together into a single string via the delimiter character default('\n')
+    TakeAll     //!< just get all the passed argument regardless
+};
 
 /// This is the CRTP base class for Option and OptionDefaults. It was designed this way
 /// to share parts of the class; an OptionDefaults can copy to an Option.
@@ -60,7 +70,7 @@ template <typename CRTP> class OptionBase {
     /// Automatically capture default value
     bool always_capture_default_{false};
 
-    /// Policy for multiple arguments when `expected_ == 1`  (can be set on bool flags, too)
+    /// Policy for handling multiple arguments beyond the expected Max
     MultiOptionPolicy multi_option_policy_{MultiOptionPolicy::Throw};
 
     /// Copy the contents to another similar class (one based on OptionBase)
@@ -80,7 +90,7 @@ template <typename CRTP> class OptionBase {
     // setters
 
     /// Changes the group membership
-    CRTP *group(std::string name) {
+    CRTP *group(const std::string &name) {
         group_ = name;
         return static_cast<CRTP *>(this);
     }
@@ -119,7 +129,7 @@ template <typename CRTP> class OptionBase {
     /// The status of configurable
     bool get_disable_flag_override() const { return disable_flag_override_; }
 
-    /// Get the current delimeter char
+    /// Get the current delimiter char
     char get_delimiter() const { return delimiter_; }
 
     /// Return true if this will automatically capture the default value for help printing
@@ -144,9 +154,24 @@ template <typename CRTP> class OptionBase {
         return self;
     }
 
-    /// Set the multi option policy to take last
+    /// Set the multi option policy to take all arguments
+    CRTP *take_all() {
+        auto self = static_cast<CRTP *>(this);
+        self->multi_option_policy(MultiOptionPolicy::TakeAll);
+        return self;
+    }
+
+    /// Set the multi option policy to join
     CRTP *join() {
         auto self = static_cast<CRTP *>(this);
+        self->multi_option_policy(MultiOptionPolicy::Join);
+        return self;
+    }
+
+    /// Set the multi option policy to join with a specific delimiter
+    CRTP *join(char delim) {
+        auto self = static_cast<CRTP *>(this);
+        self->delimiter_ = delim;
         self->multi_option_policy(MultiOptionPolicy::Join);
         return self;
     }
@@ -211,33 +236,36 @@ class Option : public OptionBase<Option> {
     ///@{
 
     /// A list of the short names (`-a`) without the leading dashes
-    std::vector<std::string> snames_;
+    std::vector<std::string> snames_{};
 
-    /// A list of the long names (`--a`) without the leading dashes
-    std::vector<std::string> lnames_;
+    /// A list of the long names (`--long`) without the leading dashes
+    std::vector<std::string> lnames_{};
 
     /// A list of the flag names with the appropriate default value, the first part of the pair should be duplicates of
     /// what is in snames or lnames but will trigger a particular response on a flag
-    std::vector<std::pair<std::string, std::string>> default_flag_values_;
+    std::vector<std::pair<std::string, std::string>> default_flag_values_{};
 
     /// a list of flag names with specified default values;
-    std::vector<std::string> fnames_;
+    std::vector<std::string> fnames_{};
 
     /// A positional name
-    std::string pname_;
+    std::string pname_{};
 
     /// If given, check the environment for this option
-    std::string envname_;
+    std::string envname_{};
 
     ///@}
     /// @name Help
     ///@{
 
     /// The description for help strings
-    std::string description_;
+    std::string description_{};
 
     /// A human readable default value, either manually set, captured, or captured by default
-    std::string default_str_;
+    std::string default_str_{};
+
+    /// If given, replace the text that describes the option type and usage in the help text
+    std::string option_text_{};
 
     /// A human readable type value, set when App creates this
     ///
@@ -245,56 +273,71 @@ class Option : public OptionBase<Option> {
     std::function<std::string()> type_name_{[]() { return std::string(); }};
 
     /// Run this function to capture a default (ignore if empty)
-    std::function<std::string()> default_function_;
+    std::function<std::string()> default_function_{};
 
     ///@}
     /// @name Configuration
     ///@{
 
-    /// The number of arguments that make up one option. -1=unlimited (vector-like), 0=flag, 1=normal option,
-    /// 2=complex/pair, etc. Set only when the option is created; this is intrinsic to the type. Eventually, -2 may mean
-    /// vector of pairs.
-    int type_size_{1};
+    /// The number of arguments that make up one option. max is the nominal type size, min is the minimum number of
+    /// strings
+    int type_size_max_{1};
+    /// The minimum number of arguments an option should be expecting
+    int type_size_min_{1};
 
-    /// The number of expected values, type_size_ must be < 0. Ignored for flag. N < 0 means at least -N values.
-    int expected_{1};
+    /// The minimum number of expected values
+    int expected_min_{1};
+    /// The maximum number of expected values
+    int expected_max_{1};
 
-    /// A list of validators to run on each value parsed
-    std::vector<Validator> validators_;
+    /// A list of Validators to run on each value parsed
+    std::vector<Validator> validators_{};
 
     /// A list of options that are required with this option
-    std::set<Option *> needs_;
+    std::set<Option *> needs_{};
 
     /// A list of options that are excluded with this option
-    std::set<Option *> excludes_;
+    std::set<Option *> excludes_{};
 
     ///@}
     /// @name Other
     ///@{
 
-    /// Remember the parent app
-    App *parent_;
+    /// link back up to the parent App for fallthrough
+    App *parent_{nullptr};
 
     /// Options store a callback to do all the work
-    callback_t callback_;
+    callback_t callback_{};
 
     ///@}
     /// @name Parsing results
     ///@{
 
-    /// Results of parsing
-    results_t results_;
-
+    /// complete Results of parsing
+    results_t results_{};
+    /// results after reduction
+    results_t proc_results_{};
+    /// enumeration for the option state machine
+    enum class option_state : char {
+        parsing = 0,       //!< The option is currently collecting parsed results
+        validated = 2,     //!< the results have been validated
+        reduced = 4,       //!< a subset of results has been generated
+        callback_run = 6,  //!< the callback has been executed
+    };
     /// Whether the callback has run (needed for INI parsing)
-    bool callback_run_{false};
-
+    option_state current_option_state_{option_state::parsing};
+    /// Specify that extra args beyond type_size_max should be allowed
+    bool allow_extra_args_{false};
+    /// Specify that the option should act like a flag vs regular option
+    bool flag_like_{false};
+    /// Control option to run the callback to set the default
+    bool run_callback_for_default_{false};
+    /// flag indicating a separator needs to be injected after each argument call
+    bool inject_separator_{false};
     ///@}
 
     /// Making an option by hand is not defined, it must be made by the App class
-    Option(std::string option_name,
-           std::string option_description,
-           std::function<bool(results_t)> callback,
-           App *parent)
+    Option(std::string option_name, std::string option_description, callback_t callback, App *parent)
         : description_(std::move(option_description)), parent_(parent), callback_(std::move(callback)) {
         std::tie(snames_, lnames_, pname_) = detail::get_names(detail::split_names(option_name));
     }
@@ -303,51 +346,89 @@ class Option : public OptionBase<Option> {
     /// @name Basic
     ///@{
 
+    Option(const Option &) = delete;
+    Option &operator=(const Option &) = delete;
+
     /// Count the total number of times an option was passed
-    size_t count() const { return results_.size(); }
+    std::size_t count() const { return results_.size(); }
 
     /// True if the option was not passed
     bool empty() const { return results_.empty(); }
 
     /// This class is true if option is passed.
-    operator bool() const { return !empty(); }
+    explicit operator bool() const { return !empty(); }
 
     /// Clear the parsed results (mostly for testing)
-    void clear() { results_.clear(); }
+    void clear() {
+        results_.clear();
+        current_option_state_ = option_state::parsing;
+    }
 
     ///@}
     /// @name Setting options
     ///@{
 
-    /// Set the number of expected arguments (Flags don't use this)
+    /// Set the number of expected arguments
     Option *expected(int value) {
-
-        // Break if this is a flag
-        if(type_size_ == 0)
-            throw IncorrectConstruction::SetFlag(get_name(true, true));
-
-        // Setting 0 is not allowed
-        if(value == 0)
-            throw IncorrectConstruction::Set0Opt(get_name());
-
-        // No change is okay, quit now
-        if(expected_ == value)
-            return this;
-
-        // Type must be a vector
-        if(type_size_ >= 0)
-            throw IncorrectConstruction::ChangeNotVector(get_name());
-
-        // TODO: Can support multioption for non-1 values (except for join)
-        if(value != 1 && multi_option_policy_ != MultiOptionPolicy::Throw)
-            throw IncorrectConstruction::AfterMultiOpt(get_name());
-
-        expected_ = value;
+        if(value < 0) {
+            expected_min_ = -value;
+            if(expected_max_ < expected_min_) {
+                expected_max_ = expected_min_;
+            }
+            allow_extra_args_ = true;
+            flag_like_ = false;
+        } else if(value == detail::expected_max_vector_size) {
+            expected_min_ = 1;
+            expected_max_ = detail::expected_max_vector_size;
+            allow_extra_args_ = true;
+            flag_like_ = false;
+        } else {
+            expected_min_ = value;
+            expected_max_ = value;
+            flag_like_ = (expected_min_ == 0);
+        }
         return this;
     }
 
+    /// Set the range of expected arguments
+    Option *expected(int value_min, int value_max) {
+        if(value_min < 0) {
+            value_min = -value_min;
+        }
+
+        if(value_max < 0) {
+            value_max = detail::expected_max_vector_size;
+        }
+        if(value_max < value_min) {
+            expected_min_ = value_max;
+            expected_max_ = value_min;
+        } else {
+            expected_max_ = value_max;
+            expected_min_ = value_min;
+        }
+
+        return this;
+    }
+    /// Set the value of allow_extra_args which allows extra value arguments on the flag or option to be included
+    /// with each instance
+    Option *allow_extra_args(bool value = true) {
+        allow_extra_args_ = value;
+        return this;
+    }
+    /// Get the current value of allow extra args
+    bool get_allow_extra_args() const { return allow_extra_args_; }
+
+    /// Set the value of run_callback_for_default which controls whether the callback function should be called to set
+    /// the default This is controlled automatically but could be manipulated by the user.
+    Option *run_callback_for_default(bool value = true) {
+        run_callback_for_default_ = value;
+        return this;
+    }
+    /// Get the current value of run_callback_for_default
+    bool get_run_callback_for_default() const { return run_callback_for_default_; }
+
     /// Adds a Validator with a built in type name
-    Option *check(Validator validator, std::string validator_name = "") {
+    Option *check(Validator validator, const std::string &validator_name = "") {
         validator.non_modifying();
         validators_.push_back(std::move(validator));
         if(!validator_name.empty())
@@ -356,24 +437,24 @@ class Option : public OptionBase<Option> {
     }
 
     /// Adds a Validator. Takes a const string& and returns an error message (empty if conversion/check is okay).
-    Option *check(std::function<std::string(const std::string &)> validator,
-                  std::string validator_description = "",
-                  std::string validator_name = "") {
-        validators_.emplace_back(validator, std::move(validator_description), std::move(validator_name));
+    Option *check(std::function<std::string(const std::string &)> Validator,
+                  std::string Validator_description = "",
+                  std::string Validator_name = "") {
+        validators_.emplace_back(Validator, std::move(Validator_description), std::move(Validator_name));
         validators_.back().non_modifying();
         return this;
     }
 
-    /// Adds a transforming validator with a built in type name
-    Option *transform(Validator validator, std::string validator_name = "") {
-        validators_.insert(validators_.begin(), std::move(validator));
-        if(!validator_name.empty())
-            validators_.front().name(validator_name);
+    /// Adds a transforming Validator with a built in type name
+    Option *transform(Validator Validator, const std::string &Validator_name = "") {
+        validators_.insert(validators_.begin(), std::move(Validator));
+        if(!Validator_name.empty())
+            validators_.front().name(Validator_name);
         return this;
     }
 
-    /// Adds a validator-like function that can change result
-    Option *transform(std::function<std::string(std::string)> func,
+    /// Adds a Validator-like function that can change result
+    Option *transform(const std::function<std::string(std::string)> &func,
                       std::string transform_description = "",
                       std::string transform_name = "") {
         validators_.insert(validators_.begin(),
@@ -389,7 +470,7 @@ class Option : public OptionBase<Option> {
     }
 
     /// Adds a user supplied function to run on each item passed in (communicate though lambda capture)
-    Option *each(std::function<void(std::string)> func) {
+    Option *each(const std::function<void(std::string)> &func) {
         validators_.emplace_back(
             [func](std::string &inout) {
                 func(inout);
@@ -399,40 +480,42 @@ class Option : public OptionBase<Option> {
         return this;
     }
     /// Get a named Validator
-    Validator *get_validator(const std::string &validator_name = "") {
-        for(auto &validator : validators_) {
-            if(validator_name == validator.get_name()) {
-                return &validator;
+    Validator *get_validator(const std::string &Validator_name = "") {
+        for(auto &Validator : validators_) {
+            if(Validator_name == Validator.get_name()) {
+                return &Validator;
             }
         }
-        if((validator_name.empty()) && (!validators_.empty())) {
+        if((Validator_name.empty()) && (!validators_.empty())) {
             return &(validators_.front());
         }
-        throw OptionNotFound(std::string{"Validator "} + validator_name + " Not Found");
+        throw OptionNotFound(std::string{"Validator "} + Validator_name + " Not Found");
     }
 
     /// Get a Validator by index NOTE: this may not be the order of definition
     Validator *get_validator(int index) {
+        // This is an signed int so that it is not equivalent to a pointer.
         if(index >= 0 && index < static_cast<int>(validators_.size())) {
-            return &(validators_[index]);
+            return &(validators_[static_cast<decltype(validators_)::size_type>(index)]);
         }
         throw OptionNotFound("Validator index is not valid");
     }
 
     /// Sets required options
     Option *needs(Option *opt) {
-        auto tup = needs_.insert(opt);
-        if(!tup.second)
-            throw OptionAlreadyAdded::Requires(get_name(), opt->get_name());
+        if(opt != this) {
+            needs_.insert(opt);
+        }
         return this;
     }
 
     /// Can find a string if needed
     template <typename T = App> Option *needs(std::string opt_name) {
-        for(const Option_p &opt : dynamic_cast<T *>(parent_)->options_)
-            if(opt.get() != this && opt->check_name(opt_name))
-                return needs(opt.get());
-        throw IncorrectConstruction::MissingOption(opt_name);
+        auto opt = static_cast<T *>(parent_)->get_option_no_throw(opt_name);
+        if(opt == nullptr) {
+            throw IncorrectConstruction::MissingOption(opt_name);
+        }
+        return needs(opt);
     }
 
     /// Any number supported, any mix of string and Opt
@@ -454,6 +537,9 @@ class Option : public OptionBase<Option> {
 
     /// Sets excluded options
     Option *excludes(Option *opt) {
+        if(opt == this) {
+            throw(IncorrectConstruction("and option cannot exclude itself"));
+        }
         excludes_.insert(opt);
 
         // Help text should be symmetric - excluding a should exclude b
@@ -467,10 +553,11 @@ class Option : public OptionBase<Option> {
 
     /// Can find a string if needed
     template <typename T = App> Option *excludes(std::string opt_name) {
-        for(const Option_p &opt : dynamic_cast<T *>(parent_)->options_)
-            if(opt.get() != this && opt->check_name(opt_name))
-                return excludes(opt.get());
-        throw IncorrectConstruction::MissingOption(opt_name);
+        auto opt = static_cast<T *>(parent_)->get_option_no_throw(opt_name);
+        if(opt == nullptr) {
+            throw IncorrectConstruction::MissingOption(opt_name);
+        }
+        return excludes(opt);
     }
 
     /// Any number supported, any mix of string and Opt
@@ -492,7 +579,7 @@ class Option : public OptionBase<Option> {
 
     /// Sets environment variable to read if no option given
     Option *envname(std::string name) {
-        envname_ = name;
+        envname_ = std::move(name);
         return this;
     }
 
@@ -501,13 +588,22 @@ class Option : public OptionBase<Option> {
     /// The template hides the fact that we don't have the definition of App yet.
     /// You are never expected to add an argument to the template here.
     template <typename T = App> Option *ignore_case(bool value = true) {
-        ignore_case_ = value;
-        auto *parent = dynamic_cast<T *>(parent_);
-
-        for(const Option_p &opt : parent->options_)
-            if(opt.get() != this && *opt == *this)
-                throw OptionAlreadyAdded(opt->get_name(true, true));
-
+        if(!ignore_case_ && value) {
+            ignore_case_ = value;
+            auto *parent = static_cast<T *>(parent_);
+            for(const Option_p &opt : parent->options_) {
+                if(opt.get() == this) {
+                    continue;
+                }
+                auto &omatch = opt->matching_name(*this);
+                if(!omatch.empty()) {
+                    ignore_case_ = false;
+                    throw OptionAlreadyAdded("adding ignore case caused a name conflict with " + omatch);
+                }
+            }
+        } else {
+            ignore_case_ = value;
+        }
         return this;
     }
 
@@ -516,21 +612,37 @@ class Option : public OptionBase<Option> {
     /// The template hides the fact that we don't have the definition of App yet.
     /// You are never expected to add an argument to the template here.
     template <typename T = App> Option *ignore_underscore(bool value = true) {
-        ignore_underscore_ = value;
-        auto *parent = dynamic_cast<T *>(parent_);
-        for(const Option_p &opt : parent->options_)
-            if(opt.get() != this && *opt == *this)
-                throw OptionAlreadyAdded(opt->get_name(true, true));
 
+        if(!ignore_underscore_ && value) {
+            ignore_underscore_ = value;
+            auto *parent = static_cast<T *>(parent_);
+            for(const Option_p &opt : parent->options_) {
+                if(opt.get() == this) {
+                    continue;
+                }
+                auto &omatch = opt->matching_name(*this);
+                if(!omatch.empty()) {
+                    ignore_underscore_ = false;
+                    throw OptionAlreadyAdded("adding ignore underscore caused a name conflict with " + omatch);
+                }
+            }
+        } else {
+            ignore_underscore_ = value;
+        }
         return this;
     }
 
     /// Take the last argument if given multiple times (or another policy)
     Option *multi_option_policy(MultiOptionPolicy value = MultiOptionPolicy::Throw) {
-
-        if(get_items_expected() < 0)
-            throw IncorrectConstruction::MultiOptionPolicy(get_name());
-        multi_option_policy_ = value;
+        if(value != multi_option_policy_) {
+            if(multi_option_policy_ == MultiOptionPolicy::Throw && expected_max_ == detail::expected_max_vector_size &&
+               expected_min_ > 1) {  // this bizarre condition is to maintain backwards compatibility
+                                     // with the previous behavior of expected_ with vectors
+                expected_max_ = expected_min_;
+            }
+            multi_option_policy_ = value;
+            current_option_state_ = option_state::parsing;
+        }
         return this;
     }
 
@@ -544,7 +656,15 @@ class Option : public OptionBase<Option> {
     ///@{
 
     /// The number of arguments the option expects
-    int get_type_size() const { return type_size_; }
+    int get_type_size() const { return type_size_min_; }
+
+    /// The minimum number of arguments the option expects
+    int get_type_size_min() const { return type_size_min_; }
+    /// The maximum number of arguments the option expects
+    int get_type_size_max() const { return type_size_max_; }
+
+    /// The number of arguments the option expects
+    int get_inject_separator() const { return inject_separator_; }
 
     /// The environment variable associated to this value
     std::string get_envname() const { return envname_; }
@@ -555,10 +675,6 @@ class Option : public OptionBase<Option> {
     /// The set of options excluded
     std::set<Option *> get_excludes() const { return excludes_; }
 
-    /// The default value (for help printing) DEPRECATED Use get_default_str() instead
-    CLI11_DEPRECATED("Use get_default_str() instead")
-    std::string get_defaultval() const { return default_str_; }
-
     /// The default value (for help printing)
     std::string get_default_str() const { return default_str_; }
 
@@ -566,37 +682,44 @@ class Option : public OptionBase<Option> {
     callback_t get_callback() const { return callback_; }
 
     /// Get the long names
-    const std::vector<std::string> get_lnames() const { return lnames_; }
+    const std::vector<std::string> &get_lnames() const { return lnames_; }
 
     /// Get the short names
-    const std::vector<std::string> get_snames() const { return snames_; }
+    const std::vector<std::string> &get_snames() const { return snames_; }
 
     /// Get the flag names with specified default values
-    const std::vector<std::string> get_fnames() const { return fnames_; }
+    const std::vector<std::string> &get_fnames() const { return fnames_; }
+    /// Get a single name for the option, first of lname, pname, sname, envname
+    const std::string &get_single_name() const {
+        if(!lnames_.empty()) {
+            return lnames_[0];
+        }
+        if(!pname_.empty()) {
+            return pname_;
+        }
+        if(!snames_.empty()) {
+            return snames_[0];
+        }
+        return envname_;
+    }
+    /// The number of times the option expects to be included
+    int get_expected() const { return expected_min_; }
 
     /// The number of times the option expects to be included
-    int get_expected() const { return expected_; }
+    int get_expected_min() const { return expected_min_; }
+    /// The max number of times the option expects to be included
+    int get_expected_max() const { return expected_max_; }
 
-    /// \brief The total number of expected values (including the type)
-    /// This is positive if exactly this number is expected, and negative for at least N values
-    ///
-    /// v = fabs(size_type*expected)
-    /// !MultiOptionPolicy::Throw
-    ///           | Expected < 0  | Expected == 0 | Expected > 0
-    /// Size < 0  |      -v       |       0       |     -v
-    /// Size == 0 |       0       |       0       |      0
-    /// Size > 0  |      -v       |       0       |     -v       // Expected must be 1
-    ///
-    /// MultiOptionPolicy::Throw
-    ///           | Expected < 0  | Expected == 0 | Expected > 0
-    /// Size < 0  |      -v       |       0       |      v
-    /// Size == 0 |       0       |       0       |      0
-    /// Size > 0  |       v       |       0       |      v      // Expected must be 1
-    ///
-    int get_items_expected() const {
-        return std::abs(type_size_ * expected_) *
-               ((multi_option_policy_ != MultiOptionPolicy::Throw || (expected_ < 0 && type_size_ < 0) ? -1 : 1));
+    /// The total min number of expected  string values to be used
+    int get_items_expected_min() const { return type_size_min_ * expected_min_; }
+
+    /// Get the maximum number of items expected to be returned and used for the callback
+    int get_items_expected_max() const {
+        int t = type_size_max_;
+        return detail::checked_multiply(t, expected_max_) ? t : detail::expected_max_vector_size;
     }
+    /// The total min number of expected  string values to be used
+    int get_items_expected() const { return get_items_expected_min(); }
 
     /// True if the argument can be given directly
     bool get_positional() const { return pname_.length() > 0; }
@@ -616,6 +739,13 @@ class Option : public OptionBase<Option> {
         return this;
     }
 
+    Option *option_text(std::string text) {
+        option_text_ = std::move(text);
+        return this;
+    }
+
+    const std::string &get_option_text() const { return option_text_; }
+
     ///@}
     /// @name Help tools
     ///@{
@@ -624,9 +754,11 @@ class Option : public OptionBase<Option> {
     /// Will include / prefer the positional name if positional is true.
     /// If all_options is false, pick just the most descriptive name to show.
     /// Use `get_name(true)` to get the positional name (replaces `get_pname`)
-    std::string get_name(bool positional = false, //<[input] Show the positional name
-                         bool all_options = false //<[input] Show every option
+    std::string get_name(bool positional = false,  ///< Show the positional name
+                         bool all_options = false  ///< Show every option
                          ) const {
+        if(get_group().empty())
+            return {};  // Hidden
 
         if(all_options) {
 
@@ -684,115 +816,90 @@ class Option : public OptionBase<Option> {
     /// Process the callback
     void run_callback() {
 
-        callback_run_ = true;
-
-        // Run the validators (can change the string)
-        if(!validators_.empty()) {
-            int index = 0;
-            // this is not available until multi_option_policy with type_size_>0 is enabled and functional
-            // if(type_size_ > 0 && multi_option_policy_ == CLI::MultiOptionPolicy::TakeLast) {
-            //    index = type_size_ - static_cast<int>(results_.size());
-            //}
-            if(type_size_ < 0 && multi_option_policy_ == CLI::MultiOptionPolicy::TakeLast) { // for vector operations
-                index = expected_ - static_cast<int>(results_.size());
-            }
-            for(std::string &result : results_) {
-                auto err_msg = _validate(result, index);
-                ++index;
-                if(!err_msg.empty())
-                    throw ValidationError(get_name(), err_msg);
-            }
-        }
-        if(!(callback_)) {
-            return;
-        }
-        bool local_result;
-
-        // Num items expected or length of vector, always at least 1
-        // Only valid for a trimming policy
-        int trim_size =
-            std::min<int>(std::max<int>(std::abs(get_items_expected()), 1), static_cast<int>(results_.size()));
-
-        // Operation depends on the policy setting
-        if(multi_option_policy_ == MultiOptionPolicy::TakeLast) {
-            // Allow multi-option sizes (including 0)
-            results_t partial_result{results_.end() - trim_size, results_.end()};
-            local_result = !callback_(partial_result);
-
-        } else if(multi_option_policy_ == MultiOptionPolicy::TakeFirst) {
-            results_t partial_result{results_.begin(), results_.begin() + trim_size};
-            local_result = !callback_(partial_result);
-
-        } else if(multi_option_policy_ == MultiOptionPolicy::Join) {
-            results_t partial_result = {detail::join(results_, "\n")};
-            local_result = !callback_(partial_result);
-
-        } else {
-            // Exact number required
-            if(get_items_expected() > 0) {
-                if(results_.size() != static_cast<size_t>(get_items_expected()))
-                    throw ArgumentMismatch(get_name(), get_items_expected(), results_.size());
-                // Variable length list
-            } else if(get_items_expected() < 0) {
-                // Require that this be a multiple of expected size and at least as many as expected
-                if(results_.size() < static_cast<size_t>(-get_items_expected()) ||
-                   results_.size() % static_cast<size_t>(std::abs(get_type_size())) != 0u)
-                    throw ArgumentMismatch(get_name(), get_items_expected(), results_.size());
-            }
-            local_result = !callback_(results_);
+        if(current_option_state_ == option_state::parsing) {
+            _validate_results(results_);
+            current_option_state_ = option_state::validated;
         }
 
-        if(local_result)
-            throw ConversionError(get_name(), results_);
+        if(current_option_state_ < option_state::reduced) {
+            _reduce_results(proc_results_, results_);
+            current_option_state_ = option_state::reduced;
+        }
+        if(current_option_state_ >= option_state::reduced) {
+            current_option_state_ = option_state::callback_run;
+            if(!(callback_)) {
+                return;
+            }
+            const results_t &send_results = proc_results_.empty() ? results_ : proc_results_;
+            bool local_result = callback_(send_results);
+
+            if(!local_result)
+                throw ConversionError(get_name(), results_);
+        }
     }
 
-    /// If options share any of the same names, they are equal (not counting positional)
-    bool operator==(const Option &other) const {
+    /// If options share any of the same names, find it
+    const std::string &matching_name(const Option &other) const {
+        static const std::string estring;
         for(const std::string &sname : snames_)
             if(other.check_sname(sname))
-                return true;
+                return sname;
         for(const std::string &lname : lnames_)
             if(other.check_lname(lname))
-                return true;
+                return lname;
 
         if(ignore_case_ ||
-           ignore_underscore_) { // We need to do the inverse, in case we are ignore_case or ignore underscore
+           ignore_underscore_) {  // We need to do the inverse, in case we are ignore_case or ignore underscore
             for(const std::string &sname : other.snames_)
                 if(check_sname(sname))
-                    return true;
+                    return sname;
             for(const std::string &lname : other.lnames_)
                 if(check_lname(lname))
-                    return true;
+                    return lname;
         }
-        return false;
+        return estring;
     }
+    /// If options share any of the same names, they are equal (not counting positional)
+    bool operator==(const Option &other) const { return !matching_name(other).empty(); }
 
     /// Check a name. Requires "-" or "--" for short / long, supports positional name
-    bool check_name(std::string name) const {
+    bool check_name(const std::string &name) const {
 
         if(name.length() > 2 && name[0] == '-' && name[1] == '-')
             return check_lname(name.substr(2));
         if(name.length() > 1 && name.front() == '-')
             return check_sname(name.substr(1));
+        if(!pname_.empty()) {
+            std::string local_pname = pname_;
+            std::string local_name = name;
+            if(ignore_underscore_) {
+                local_pname = detail::remove_underscore(local_pname);
+                local_name = detail::remove_underscore(local_name);
+            }
+            if(ignore_case_) {
+                local_pname = detail::to_lower(local_pname);
+                local_name = detail::to_lower(local_name);
+            }
+            if(local_name == local_pname) {
+                return true;
+            }
+        }
 
-        std::string local_pname = pname_;
-        if(ignore_underscore_) {
-            local_pname = detail::remove_underscore(local_pname);
-            name = detail::remove_underscore(name);
+        if(!envname_.empty()) {
+            // this needs to be the original since envname_ shouldn't match on case insensitivity
+            return (name == envname_);
         }
-        if(ignore_case_) {
-            local_pname = detail::to_lower(local_pname);
-            name = detail::to_lower(name);
-        }
-        return name == local_pname;
+        return false;
     }
 
     /// Requires "-" to be removed from string
-    bool check_sname(std::string name) const { return (detail::find_member(name, snames_, ignore_case_) >= 0); }
+    bool check_sname(std::string name) const {
+        return (detail::find_member(std::move(name), snames_, ignore_case_) >= 0);
+    }
 
     /// Requires "--" to be removed from string
     bool check_lname(std::string name) const {
-        return (detail::find_member(name, lnames_, ignore_case_, ignore_underscore_) >= 0);
+        return (detail::find_member(std::move(name), lnames_, ignore_case_, ignore_underscore_) >= 0);
     }
 
     /// Requires "--" to be removed from string
@@ -800,11 +907,12 @@ class Option : public OptionBase<Option> {
         if(fnames_.empty()) {
             return false;
         }
-        return (detail::find_member(name, fnames_, ignore_case_, ignore_underscore_) >= 0);
+        return (detail::find_member(std::move(name), fnames_, ignore_case_, ignore_underscore_) >= 0);
     }
 
-    /// Get the value that goes for a flag, nominally gets the default value but allows for overrides if not disabled
-    std::string get_flag_value(std::string name, std::string input_value) const {
+    /// Get the value that goes for a flag, nominally gets the default value but allows for overrides if not
+    /// disabled
+    std::string get_flag_value(const std::string &name, std::string input_value) const {
         static const std::string trueString{"true"};
         static const std::string falseString{"false"};
         static const std::string emptyString{"{}"};
@@ -813,8 +921,8 @@ class Option : public OptionBase<Option> {
             if(!((input_value.empty()) || (input_value == emptyString))) {
                 auto default_ind = detail::find_member(name, fnames_, ignore_case_, ignore_underscore_);
                 if(default_ind >= 0) {
-                    // We can static cast this to size_t because it is more than 0 in this block
-                    if(default_flag_values_[static_cast<size_t>(default_ind)].second != input_value) {
+                    // We can static cast this to std::size_t because it is more than 0 in this block
+                    if(default_flag_values_[static_cast<std::size_t>(default_ind)].second != input_value) {
                         throw(ArgumentMismatch::FlagOverride(name));
                     }
                 } else {
@@ -826,12 +934,16 @@ class Option : public OptionBase<Option> {
         }
         auto ind = detail::find_member(name, fnames_, ignore_case_, ignore_underscore_);
         if((input_value.empty()) || (input_value == emptyString)) {
-            return (ind < 0) ? trueString : default_flag_values_[static_cast<size_t>(ind)].second;
+            if(flag_like_) {
+                return (ind < 0) ? trueString : default_flag_values_[static_cast<std::size_t>(ind)].second;
+            } else {
+                return (ind < 0) ? default_str_ : default_flag_values_[static_cast<std::size_t>(ind)].second;
+            }
         }
         if(ind < 0) {
             return input_value;
         }
-        if(default_flag_values_[static_cast<size_t>(ind)].second == falseString) {
+        if(default_flag_values_[static_cast<std::size_t>(ind)].second == falseString) {
             try {
                 auto val = detail::to_flag_value(input_value);
                 return (val == 1) ? falseString : (val == (-1) ? trueString : std::to_string(-val));
@@ -845,69 +957,75 @@ class Option : public OptionBase<Option> {
 
     /// Puts a result at the end
     Option *add_result(std::string s) {
-        _add_result(std::move(s));
-        callback_run_ = false;
+        _add_result(std::move(s), results_);
+        current_option_state_ = option_state::parsing;
         return this;
     }
 
     /// Puts a result at the end and get a count of the number of arguments actually added
     Option *add_result(std::string s, int &results_added) {
-        results_added = _add_result(std::move(s));
-        callback_run_ = false;
+        results_added = _add_result(std::move(s), results_);
+        current_option_state_ = option_state::parsing;
         return this;
     }
 
     /// Puts a result at the end
     Option *add_result(std::vector<std::string> s) {
         for(auto &str : s) {
-            _add_result(std::move(str));
+            _add_result(std::move(str), results_);
         }
-        callback_run_ = false;
+        current_option_state_ = option_state::parsing;
         return this;
     }
 
-    /// Get a copy of the results
-    std::vector<std::string> results() const { return results_; }
+    /// Get the current complete results set
+    const results_t &results() const { return results_; }
 
-    /// Get the results as a specified type
-    template <typename T,
-              enable_if_t<!is_vector<T>::value && !std::is_const<T>::value, detail::enabler> = detail::dummy>
-    void results(T &output) const {
-        bool retval;
-        if(results_.empty()) {
-            retval = detail::lexical_cast(default_str_, output);
-        } else if(results_.size() == 1) {
-            retval = detail::lexical_cast(results_[0], output);
-        } else {
-            switch(multi_option_policy_) {
-            case MultiOptionPolicy::TakeFirst:
-                retval = detail::lexical_cast(results_.front(), output);
-                break;
-            case MultiOptionPolicy::TakeLast:
-            default:
-                retval = detail::lexical_cast(results_.back(), output);
-                break;
-            case MultiOptionPolicy::Throw:
-                throw ConversionError(get_name(), results_);
-            case MultiOptionPolicy::Join:
-                retval = detail::lexical_cast(detail::join(results_), output);
-                break;
+    /// Get a copy of the results
+    results_t reduced_results() const {
+        results_t res = proc_results_.empty() ? results_ : proc_results_;
+        if(current_option_state_ < option_state::reduced) {
+            if(current_option_state_ == option_state::parsing) {
+                res = results_;
+                _validate_results(res);
+            }
+            if(!res.empty()) {
+                results_t extra;
+                _reduce_results(extra, res);
+                if(!extra.empty()) {
+                    res = std::move(extra);
+                }
             }
         }
-        if(!retval) {
-            throw ConversionError(get_name(), results_);
-        }
+        return res;
     }
-    /// Get the results as a vector of the specified type
-    template <typename T> void results(std::vector<T> &output) const {
-        output.clear();
-        bool retval = true;
 
-        for(const auto &elem : results_) {
-            output.emplace_back();
-            retval &= detail::lexical_cast(elem, output.back());
+    /// Get the results as a specified type
+    template <typename T> void results(T &output) const {
+        bool retval;
+        if(current_option_state_ >= option_state::reduced || (results_.size() == 1 && validators_.empty())) {
+            const results_t &res = (proc_results_.empty()) ? results_ : proc_results_;
+            retval = detail::lexical_conversion<T, T>(res, output);
+        } else {
+            results_t res;
+            if(results_.empty()) {
+                if(!default_str_.empty()) {
+                    // _add_results takes an rvalue only
+                    _add_result(std::string(default_str_), res);
+                    _validate_results(res);
+                    results_t extra;
+                    _reduce_results(extra, res);
+                    if(!extra.empty()) {
+                        res = std::move(extra);
+                    }
+                } else {
+                    res.emplace_back();
+                }
+            } else {
+                res = reduced_results();
+            }
+            retval = detail::lexical_conversion<T, T>(res, output);
         }
-
         if(!retval) {
             throw ConversionError(get_name(), results_);
         }
@@ -921,7 +1039,7 @@ class Option : public OptionBase<Option> {
     }
 
     /// See if the callback has been run already
-    bool get_callback_run() const { return callback_run_; }
+    bool get_callback_run() const { return (current_option_state_ == option_state::callback_run); }
 
     ///@}
     /// @name Custom options
@@ -929,7 +1047,7 @@ class Option : public OptionBase<Option> {
 
     /// Set the type function to run when displayed on this option
     Option *type_name_fn(std::function<std::string()> typefun) {
-        type_name_ = typefun;
+        type_name_ = std::move(typefun);
         return this;
     }
 
@@ -941,13 +1059,50 @@ class Option : public OptionBase<Option> {
 
     /// Set a custom option size
     Option *type_size(int option_type_size) {
-        type_size_ = option_type_size;
-        if(type_size_ == 0)
-            required_ = false;
-        if(option_type_size < 0)
-            expected_ = -1;
+        if(option_type_size < 0) {
+            // this section is included for backwards compatibility
+            type_size_max_ = -option_type_size;
+            type_size_min_ = -option_type_size;
+            expected_max_ = detail::expected_max_vector_size;
+        } else {
+            type_size_max_ = option_type_size;
+            if(type_size_max_ < detail::expected_max_vector_size) {
+                type_size_min_ = option_type_size;
+            } else {
+                inject_separator_ = true;
+            }
+            if(type_size_max_ == 0)
+                required_ = false;
+        }
         return this;
     }
+    /// Set a custom option type size range
+    Option *type_size(int option_type_size_min, int option_type_size_max) {
+        if(option_type_size_min < 0 || option_type_size_max < 0) {
+            // this section is included for backwards compatibility
+            expected_max_ = detail::expected_max_vector_size;
+            option_type_size_min = (std::abs)(option_type_size_min);
+            option_type_size_max = (std::abs)(option_type_size_max);
+        }
+
+        if(option_type_size_min > option_type_size_max) {
+            type_size_max_ = option_type_size_min;
+            type_size_min_ = option_type_size_max;
+        } else {
+            type_size_min_ = option_type_size_min;
+            type_size_max_ = option_type_size_max;
+        }
+        if(type_size_max_ == 0) {
+            required_ = false;
+        }
+        if(type_size_max_ >= detail::expected_max_vector_size) {
+            inject_separator_ = true;
+        }
+        return this;
+    }
+
+    /// Set the value of the separator injection flag
+    void inject_separator(bool value = true) { inject_separator_ = value; }
 
     /// Set a capture function for the default. Mostly used by App.
     Option *default_function(const std::function<std::string()> &func) {
@@ -965,17 +1120,34 @@ class Option : public OptionBase<Option> {
 
     /// Set the default value string representation (does not change the contained value)
     Option *default_str(std::string val) {
-        default_str_ = val;
+        default_str_ = std::move(val);
         return this;
     }
 
-    /// Set the default value string representation and evaluate into the bound value
-    Option *default_val(std::string val) {
-        default_str(val);
-        auto old_results = results_;
-        results_ = {val};
-        run_callback();
+    /// Set the default value and validate the results and run the callback if appropriate to set the value into the
+    /// bound value only available for types that can be converted to a string
+    template <typename X> Option *default_val(const X &val) {
+        std::string val_str = detail::to_string(val);
+        auto old_option_state = current_option_state_;
+        results_t old_results{std::move(results_)};
+        results_.clear();
+        try {
+            add_result(val_str);
+            if(run_callback_for_default_) {
+                run_callback();  // run callback sets the state we need to reset it again
+                current_option_state_ = option_state::parsing;
+            } else {
+                _validate_results(results_);
+                current_option_state_ = old_option_state;
+            }
+        } catch(const CLI::Error &) {
+            // this should be done
+            results_ = std::move(old_results);
+            current_option_state_ = old_option_state;
+            throw;
+        }
         results_ = std::move(old_results);
+        default_str_ = std::move(val_str);
         return this;
     }
 
@@ -983,8 +1155,8 @@ class Option : public OptionBase<Option> {
     std::string get_type_name() const {
         std::string full_type_name = type_name_();
         if(!validators_.empty()) {
-            for(auto &validator : validators_) {
-                std::string vtype = validator.get_description();
+            for(auto &Validator : validators_) {
+                std::string vtype = Validator.get_description();
                 if(!vtype.empty()) {
                     full_type_name += ":" + vtype;
                 }
@@ -994,9 +1166,106 @@ class Option : public OptionBase<Option> {
     }
 
   private:
-    // Run a result through the validators
-    std::string _validate(std::string &result, int index) {
+    /// Run the results through the Validators
+    void _validate_results(results_t &res) const {
+        // Run the Validators (can change the string)
+        if(!validators_.empty()) {
+            if(type_size_max_ > 1) {  // in this context index refers to the index in the type
+                int index = 0;
+                if(get_items_expected_max() < static_cast<int>(res.size()) &&
+                   multi_option_policy_ == CLI::MultiOptionPolicy::TakeLast) {
+                    // create a negative index for the earliest ones
+                    index = get_items_expected_max() - static_cast<int>(res.size());
+                }
+
+                for(std::string &result : res) {
+                    if(detail::is_separator(result) && type_size_max_ != type_size_min_ && index >= 0) {
+                        index = 0;  // reset index for variable size chunks
+                        continue;
+                    }
+                    auto err_msg = _validate(result, (index >= 0) ? (index % type_size_max_) : index);
+                    if(!err_msg.empty())
+                        throw ValidationError(get_name(), err_msg);
+                    ++index;
+                }
+            } else {
+                int index = 0;
+                if(expected_max_ < static_cast<int>(res.size()) &&
+                   multi_option_policy_ == CLI::MultiOptionPolicy::TakeLast) {
+                    // create a negative index for the earliest ones
+                    index = expected_max_ - static_cast<int>(res.size());
+                }
+                for(std::string &result : res) {
+                    auto err_msg = _validate(result, index);
+                    ++index;
+                    if(!err_msg.empty())
+                        throw ValidationError(get_name(), err_msg);
+                }
+            }
+        }
+    }
+
+    /** reduce the results in accordance with the MultiOptionPolicy
+    @param[out] res results are assigned to res if there if they are different
+    */
+    void _reduce_results(results_t &res, const results_t &original) const {
+
+        // max num items expected or length of vector, always at least 1
+        // Only valid for a trimming policy
+
+        res.clear();
+        // Operation depends on the policy setting
+        switch(multi_option_policy_) {
+        case MultiOptionPolicy::TakeAll:
+            break;
+        case MultiOptionPolicy::TakeLast: {
+            // Allow multi-option sizes (including 0)
+            std::size_t trim_size = std::min<std::size_t>(
+                static_cast<std::size_t>(std::max<int>(get_items_expected_max(), 1)), original.size());
+            if(original.size() != trim_size) {
+                res.assign(original.end() - static_cast<results_t::difference_type>(trim_size), original.end());
+            }
+        } break;
+        case MultiOptionPolicy::TakeFirst: {
+            std::size_t trim_size = std::min<std::size_t>(
+                static_cast<std::size_t>(std::max<int>(get_items_expected_max(), 1)), original.size());
+            if(original.size() != trim_size) {
+                res.assign(original.begin(), original.begin() + static_cast<results_t::difference_type>(trim_size));
+            }
+        } break;
+        case MultiOptionPolicy::Join:
+            if(results_.size() > 1) {
+                res.push_back(detail::join(original, std::string(1, (delimiter_ == '\0') ? '\n' : delimiter_)));
+            }
+            break;
+        case MultiOptionPolicy::Throw:
+        default: {
+            auto num_min = static_cast<std::size_t>(get_items_expected_min());
+            auto num_max = static_cast<std::size_t>(get_items_expected_max());
+            if(num_min == 0) {
+                num_min = 1;
+            }
+            if(num_max == 0) {
+                num_max = 1;
+            }
+            if(original.size() < num_min) {
+                throw ArgumentMismatch::AtLeast(get_name(), static_cast<int>(num_min), original.size());
+            }
+            if(original.size() > num_max) {
+                throw ArgumentMismatch::AtMost(get_name(), static_cast<int>(num_max), original.size());
+            }
+            break;
+        }
+        }
+    }
+
+    // Run a result through the Validators
+    std::string _validate(std::string &result, int index) const {
         std::string err_msg;
+        if(result.empty() && expected_min_ == 0) {
+            // an empty with nothing expected is allowed
+            return err_msg;
+        }
         for(const auto &vali : validators_) {
             auto v = vali.get_application_index();
             if(v == -1 || v == index) {
@@ -1009,30 +1278,42 @@ class Option : public OptionBase<Option> {
                     break;
             }
         }
+
         return err_msg;
     }
 
     /// Add a single result to the result set, taking into account delimiters
-    int _add_result(std::string &&result) {
+    int _add_result(std::string &&result, std::vector<std::string> &res) const {
         int result_count = 0;
+        if(allow_extra_args_ && !result.empty() && result.front() == '[' &&
+           result.back() == ']') {  // this is now a vector string likely from the default or user entry
+            result.pop_back();
+
+            for(auto &var : CLI::detail::split(result.substr(1), ',')) {
+                if(!var.empty()) {
+                    result_count += _add_result(std::move(var), res);
+                }
+            }
+            return result_count;
+        }
         if(delimiter_ == '\0') {
-            results_.push_back(std::move(result));
+            res.push_back(std::move(result));
             ++result_count;
         } else {
             if((result.find_first_of(delimiter_) != std::string::npos)) {
                 for(const auto &var : CLI::detail::split(result, delimiter_)) {
                     if(!var.empty()) {
-                        results_.push_back(var);
+                        res.push_back(var);
                         ++result_count;
                     }
                 }
             } else {
-                results_.push_back(std::move(result));
+                res.push_back(std::move(result));
                 ++result_count;
             }
         }
         return result_count;
     }
-}; // namespace CLI
+};  // namespace CLI
 
-} // namespace CLI
+}  // namespace CLI

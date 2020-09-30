@@ -1,10 +1,18 @@
-#include "CLI/CLI.hpp"
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#include <CLI/CLI.hpp>
+#include <iostream>
+#include <string>
 
 int main(int argc, char **argv) {
 
     CLI::App app("test for positional validation");
 
-    int num1 = -1, num2 = -1;
+    int num1{-1}, num2{-1};
     app.add_option("num1", num1, "first number")->check(CLI::Number);
     app.add_option("num2", num2, "second number")->check(CLI::Number);
     std::string file1, file2;

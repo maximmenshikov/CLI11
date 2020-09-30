@@ -1,5 +1,12 @@
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "app_helper.hpp"
 #include <complex>
+#include <cstdint>
 #include <cstdlib>
 
 #include "gmock/gmock.h"
@@ -40,12 +47,14 @@ TEST_F(TApp, OneFlagShortValuesAs) {
     flg->take_last();
     EXPECT_EQ(opt->as<int>(), 2);
     flg->multi_option_policy(CLI::MultiOptionPolicy::Throw);
-    EXPECT_THROW(opt->as<int>(), CLI::ConversionError);
-
+    EXPECT_THROW(opt->as<int>(), CLI::ArgumentMismatch);
+    flg->multi_option_policy(CLI::MultiOptionPolicy::TakeAll);
     auto vec = opt->as<std::vector<int>>();
     EXPECT_EQ(vec[0], 1);
     EXPECT_EQ(vec[1], 2);
     flg->multi_option_policy(CLI::MultiOptionPolicy::Join);
+    EXPECT_EQ(opt->as<std::string>(), "1\n2");
+    flg->delimiter(',');
     EXPECT_EQ(opt->as<std::string>(), "1,2");
 }
 
@@ -138,7 +147,7 @@ TEST_F(TApp, RequireOptionsError) {
 }
 
 TEST_F(TApp, BoolFlagOverride) {
-    bool val;
+    bool val{false};
     auto flg = app.add_flag("--this,--that", val);
 
     app.parse("--this");
@@ -158,7 +167,7 @@ TEST_F(TApp, BoolFlagOverride) {
 }
 
 TEST_F(TApp, OneFlagRef) {
-    int ref;
+    int ref{0};
     app.add_flag("-c,--count", ref);
     args = {"--count"};
     run();
@@ -168,7 +177,7 @@ TEST_F(TApp, OneFlagRef) {
 }
 
 TEST_F(TApp, OneFlagRefValue) {
-    int ref;
+    int ref{0};
     app.add_flag("-c,--count", ref);
     args = {"--count=7"};
     run();
@@ -178,7 +187,7 @@ TEST_F(TApp, OneFlagRefValue) {
 }
 
 TEST_F(TApp, OneFlagRefValueFalse) {
-    int ref;
+    int ref{0};
     auto flg = app.add_flag("-c,--count", ref);
     args = {"--count=false"};
     run();
@@ -198,7 +207,7 @@ TEST_F(TApp, OneFlagRefValueFalse) {
 }
 
 TEST_F(TApp, FlagNegation) {
-    int ref;
+    int ref{0};
     auto flg = app.add_flag("-c,--count,--ncount{false}", ref);
     args = {"--count", "-c", "--ncount"};
     EXPECT_FALSE(flg->check_fname("count"));
@@ -211,7 +220,7 @@ TEST_F(TApp, FlagNegation) {
 }
 
 TEST_F(TApp, FlagNegationShortcutNotation) {
-    int ref;
+    int ref{0};
     app.add_flag("-c,--count{true},!--ncount", ref);
     args = {"--count=TRUE", "-c", "--ncount"};
     run();
@@ -222,7 +231,7 @@ TEST_F(TApp, FlagNegationShortcutNotation) {
 }
 
 TEST_F(TApp, FlagNegationShortcutNotationInvalid) {
-    int ref;
+    int ref{0};
     app.add_flag("-c,--count,!--ncount", ref);
     args = {"--ncount=happy"};
     EXPECT_THROW(run(), CLI::ConversionError);
@@ -292,7 +301,7 @@ TEST_F(TApp, OneStringEqualVersionSingleString) {
 TEST_F(TApp, OneStringEqualVersionSingleStringQuoted) {
     std::string str;
     app.add_option("-s,--string", str);
-    app.parse("--string=\"this is my quoted string\"");
+    app.parse(R"raw(--string="this is my quoted string")raw");
     EXPECT_EQ(1u, app.count("-s"));
     EXPECT_EQ(1u, app.count("--string"));
     EXPECT_EQ(str, "this is my quoted string");
@@ -303,7 +312,7 @@ TEST_F(TApp, OneStringEqualVersionSingleStringQuotedMultiple) {
     app.add_option("-s,--string", str);
     app.add_option("-t,--tstr", str2);
     app.add_option("-m,--mstr", str3);
-    app.parse("--string=\"this is my quoted string\" -t 'qstring 2' -m=`\"quoted string\"`");
+    app.parse(R"raw(--string="this is my quoted string" -t 'qstring 2' -m=`"quoted string"`)raw");
     EXPECT_EQ(str, "this is my quoted string");
     EXPECT_EQ(str2, "qstring 2");
     EXPECT_EQ(str3, "\"quoted string\"");
@@ -314,12 +323,12 @@ TEST_F(TApp, OneStringEqualVersionSingleStringEmbeddedEqual) {
     app.add_option("-s,--string", str);
     app.add_option("-t,--tstr", str2);
     app.add_option("-m,--mstr", str3);
-    app.parse("--string=\"app=\\\"test1 b\\\" test2=\\\"frogs\\\"\" -t 'qstring 2' -m=`\"quoted string\"`");
+    app.parse(R"raw(--string="app=\"test1 b\" test2=\"frogs\"" -t 'qstring 2' -m=`"quoted string"`)raw");
     EXPECT_EQ(str, "app=\"test1 b\" test2=\"frogs\"");
     EXPECT_EQ(str2, "qstring 2");
     EXPECT_EQ(str3, "\"quoted string\"");
 
-    app.parse("--string=\"app='test1 b' test2='frogs'\" -t 'qstring 2' -m=`\"quoted string\"`");
+    app.parse(R"raw(--string="app='test1 b' test2='frogs'" -t 'qstring 2' -m=`"quoted string"`)raw");
     EXPECT_EQ(str, "app='test1 b' test2='frogs'");
     EXPECT_EQ(str2, "qstring 2");
     EXPECT_EQ(str3, "\"quoted string\"");
@@ -331,12 +340,12 @@ TEST_F(TApp, OneStringEqualVersionSingleStringEmbeddedEqualWindowsStyle) {
     app.add_option("-t,--tstr", str2);
     app.add_option("--mstr", str3);
     app.allow_windows_style_options();
-    app.parse("/string:\"app:\\\"test1 b\\\" test2:\\\"frogs\\\"\" /t 'qstring 2' /mstr:`\"quoted string\"`");
+    app.parse(R"raw(/string:"app:\"test1 b\" test2:\"frogs\"" /t 'qstring 2' /mstr:`"quoted string"`)raw");
     EXPECT_EQ(str, "app:\"test1 b\" test2:\"frogs\"");
     EXPECT_EQ(str2, "qstring 2");
     EXPECT_EQ(str3, "\"quoted string\"");
 
-    app.parse("/string:\"app:'test1 b' test2:'frogs'\" /t 'qstring 2' /mstr:`\"quoted string\"`");
+    app.parse(R"raw(/string:"app:'test1 b' test2:'frogs'" /t 'qstring 2' /mstr:`"quoted string"`)raw");
     EXPECT_EQ(str, "app:'test1 b' test2:'frogs'");
     EXPECT_EQ(str2, "qstring 2");
     EXPECT_EQ(str3, "\"quoted string\"");
@@ -348,7 +357,7 @@ TEST_F(TApp, OneStringEqualVersionSingleStringQuotedMultipleMixedStyle) {
     app.add_option("-t,--tstr", str2);
     app.add_option("-m,--mstr", str3);
     app.allow_windows_style_options();
-    app.parse("/string:\"this is my quoted string\" /t 'qstring 2' -m=`\"quoted string\"`");
+    app.parse(R"raw(/string:"this is my quoted string" /t 'qstring 2' -m=`"quoted string"`)raw");
     EXPECT_EQ(str, "this is my quoted string");
     EXPECT_EQ(str2, "qstring 2");
     EXPECT_EQ(str3, "\"quoted string\"");
@@ -359,7 +368,7 @@ TEST_F(TApp, OneStringEqualVersionSingleStringQuotedMultipleInMiddle) {
     app.add_option("-s,--string", str);
     app.add_option("-t,--tstr", str2);
     app.add_option("-m,--mstr", str3);
-    app.parse(R"raw(--string="this is my quoted string" -t "qst\"ring 2" -m=`"quoted string"`")raw");
+    app.parse(R"raw(--string="this is my quoted string" -t "qst\"ring 2" -m=`"quoted string"`)raw");
     EXPECT_EQ(str, "this is my quoted string");
     EXPECT_EQ(str2, "qst\"ring 2");
     EXPECT_EQ(str3, "\"quoted string\"");
@@ -382,7 +391,7 @@ TEST_F(TApp, OneStringEqualVersionSingleStringQuotedMultipleWithEqual) {
     app.add_option("-t,--tstr", str2);
     app.add_option("-m,--mstr", str3);
     app.add_option("-j,--jstr", str4);
-    app.parse("--string=\"this is my quoted string\" -t 'qstring 2' -m=`\"quoted string\"` --jstr=Unquoted");
+    app.parse(R"raw(--string="this is my quoted string" -t 'qstring 2' -m=`"quoted string"` --jstr=Unquoted)raw");
     EXPECT_EQ(str, "this is my quoted string");
     EXPECT_EQ(str2, "qstring 2");
     EXPECT_EQ(str3, "\"quoted string\"");
@@ -395,16 +404,42 @@ TEST_F(TApp, OneStringEqualVersionSingleStringQuotedMultipleWithEqualAndProgram)
     app.add_option("-t,--tstr", str2);
     app.add_option("-m,--mstr", str3);
     app.add_option("-j,--jstr", str4);
-    app.parse("program --string=\"this is my quoted string\" -t 'qstring 2' -m=`\"quoted string\"` --jstr=Unquoted",
-              true);
+    app.parse(
+        R"raw(program --string="this is my quoted string" -t 'qstring 2' -m=`"quoted string"` --jstr=Unquoted)raw",
+        true);
     EXPECT_EQ(str, "this is my quoted string");
     EXPECT_EQ(str2, "qstring 2");
     EXPECT_EQ(str3, "\"quoted string\"");
     EXPECT_EQ(str4, "Unquoted");
 }
 
+TEST_F(TApp, OneStringFlagLike) {
+    std::string str{"something"};
+    app.add_option("-s,--string", str)->expected(0, 1);
+    args = {"--string"};
+    run();
+    EXPECT_EQ(1u, app.count("-s"));
+    EXPECT_EQ(1u, app.count("--string"));
+    EXPECT_TRUE(str.empty());
+}
+
+TEST_F(TApp, OneIntFlagLike) {
+    int val{0};
+    auto opt = app.add_option("-i", val)->expected(0, 1);
+    args = {"-i"};
+    run();
+    EXPECT_EQ(1u, app.count("-i"));
+    opt->default_str("7");
+    run();
+    EXPECT_EQ(val, 7);
+
+    opt->default_val(9);
+    run();
+    EXPECT_EQ(val, 9);
+}
+
 TEST_F(TApp, TogetherInt) {
-    int i;
+    int i{0};
     app.add_option("-i,--int", i);
     args = {"-i4"};
     run();
@@ -416,78 +451,13 @@ TEST_F(TApp, TogetherInt) {
 }
 
 TEST_F(TApp, SepInt) {
-    int i;
+    int i{0};
     app.add_option("-i,--int", i);
     args = {"-i", "4"};
     run();
     EXPECT_EQ(1u, app.count("--int"));
     EXPECT_EQ(1u, app.count("-i"));
     EXPECT_EQ(i, 4);
-}
-
-TEST_F(TApp, OneStringAgain) {
-    std::string str;
-    app.add_option("-s,--string", str);
-    args = {"--string", "mystring"};
-    run();
-    EXPECT_EQ(1u, app.count("-s"));
-    EXPECT_EQ(1u, app.count("--string"));
-    EXPECT_EQ(str, "mystring");
-}
-
-TEST_F(TApp, OneStringFunction) {
-    std::string str;
-    app.add_option_function<std::string>("-s,--string", [&str](const std::string &val) { str = val; });
-    args = {"--string", "mystring"};
-    run();
-    EXPECT_EQ(1u, app.count("-s"));
-    EXPECT_EQ(1u, app.count("--string"));
-    EXPECT_EQ(str, "mystring");
-}
-
-TEST_F(TApp, doubleFunction) {
-    double res;
-    app.add_option_function<double>("--val", [&res](double val) { res = std::abs(val + 54); });
-    args = {"--val", "-354.356"};
-    run();
-    EXPECT_EQ(res, 300.356);
-    // get the original value as entered as an integer
-    EXPECT_EQ(app["--val"]->as<float>(), -354.356f);
-}
-
-TEST_F(TApp, doubleFunctionFail) {
-    double res;
-    app.add_option_function<double>("--val", [&res](double val) { res = std::abs(val + 54); });
-    args = {"--val", "not_double"};
-    EXPECT_THROW(run(), CLI::ConversionError);
-}
-
-TEST_F(TApp, doubleVectorFunction) {
-    std::vector<double> res;
-    app.add_option_function<std::vector<double>>("--val", [&res](const std::vector<double> &val) {
-        res = val;
-        std::transform(res.begin(), res.end(), res.begin(), [](double v) { return v + 5.0; });
-    });
-    args = {"--val", "5", "--val", "6", "--val", "7"};
-    run();
-    EXPECT_EQ(res.size(), 3u);
-    EXPECT_EQ(res[0], 10.0);
-    EXPECT_EQ(res[2], 12.0);
-}
-
-TEST_F(TApp, doubleVectorFunctionFail) {
-    std::vector<double> res;
-    std::string vstring = "--val";
-    app.add_option_function<std::vector<double>>(vstring, [&res](const std::vector<double> &val) {
-        res = val;
-        std::transform(res.begin(), res.end(), res.begin(), [](double v) { return v + 5.0; });
-    });
-    args = {"--val", "five", "--val", "nine", "--val", "7"};
-    EXPECT_THROW(run(), CLI::ConversionError);
-    // check that getting the results through the results function generates the same error
-    EXPECT_THROW(app[vstring]->results(res), CLI::ConversionError);
-    auto strvec = app[vstring]->as<std::vector<std::string>>();
-    EXPECT_EQ(strvec.size(), 3u);
 }
 
 TEST_F(TApp, DefaultStringAgain) {
@@ -540,7 +510,7 @@ TEST_F(TApp, LotsOfFlags) {
 
 TEST_F(TApp, NumberFlags) {
 
-    int val;
+    int val{0};
     app.add_flag("-1{1},-2{2},-3{3},-4{4},-5{5},-6{6}, -7{7}, -8{8}, -9{9}", val);
 
     args = {"-7"};
@@ -551,7 +521,7 @@ TEST_F(TApp, NumberFlags) {
 
 TEST_F(TApp, DisableFlagOverrideTest) {
 
-    int val;
+    int val{0};
     auto opt = app.add_flag("--1{1},--2{2},--3{3},--4{4},--5{5},--6{6}, --7{7}, --8{8}, --9{9}", val);
     EXPECT_FALSE(opt->get_disable_flag_override());
     opt->disable_flag_override();
@@ -591,37 +561,44 @@ TEST_F(TApp, LotsOfFlagsSingleStringExtraSpace) {
     EXPECT_EQ(1u, app.count("-A"));
 }
 
-TEST_F(TApp, BoolAndIntFlags) {
-
-    bool bflag;
-    int iflag;
-    unsigned int uflag;
-
-    app.add_flag("-b", bflag);
-    app.add_flag("-i", iflag);
-    app.add_flag("-u", uflag);
-
-    args = {"-b", "-i", "-u"};
+TEST_F(TApp, FlagLikeOption) {
+    bool val{false};
+    auto opt = app.add_option("--flag", val)->type_size(0)->default_str("true");
+    args = {"--flag"};
     run();
-    EXPECT_TRUE(bflag);
-    EXPECT_EQ(1, iflag);
-    EXPECT_EQ((unsigned int)1, uflag);
-
-    args = {"-b", "-b"};
-    ASSERT_NO_THROW(run());
-    EXPECT_TRUE(bflag);
-
-    bflag = false;
-
-    args = {"-iiiuu"};
+    EXPECT_EQ(1u, app.count("--flag"));
+    EXPECT_TRUE(val);
+    val = false;
+    opt->type_size(0, 0);  // should be the same as above
+    EXPECT_EQ(opt->get_type_size_min(), 0);
+    EXPECT_EQ(opt->get_type_size_max(), 0);
     run();
-    EXPECT_FALSE(bflag);
-    EXPECT_EQ(3, iflag);
-    EXPECT_EQ((unsigned int)2, uflag);
+    EXPECT_EQ(1u, app.count("--flag"));
+    EXPECT_TRUE(val);
+}
+
+TEST_F(TApp, FlagLikeIntOption) {
+    int val{-47};
+    auto opt = app.add_option("--flag", val)->expected(0, 1);
+    // normally some default value should be set, but this test is for some paths in the validators checks to skip
+    // validation on empty string if nothing is expected
+    opt->check(CLI::PositiveNumber);
+    args = {"--flag"};
+    EXPECT_TRUE(opt->as<std::string>().empty());
+    run();
+    EXPECT_EQ(1u, app.count("--flag"));
+    EXPECT_NE(val, -47);
+    args = {"--flag", "12"};
+    run();
+
+    EXPECT_EQ(val, 12);
+    args.clear();
+    run();
+    EXPECT_TRUE(opt->as<std::string>().empty());
 }
 
 TEST_F(TApp, BoolOnlyFlag) {
-    bool bflag;
+    bool bflag{false};
     app.add_flag("-b", bflag)->multi_option_policy(CLI::MultiOptionPolicy::Throw);
 
     args = {"-b"};
@@ -629,38 +606,12 @@ TEST_F(TApp, BoolOnlyFlag) {
     EXPECT_TRUE(bflag);
 
     args = {"-b", "-b"};
-    EXPECT_THROW(run(), CLI::ConversionError);
-}
-
-TEST_F(TApp, BoolOption) {
-    bool bflag;
-    app.add_option("-b", bflag);
-
-    args = {"-b", "false"};
-    run();
-    EXPECT_FALSE(bflag);
-
-    args = {"-b", "1"};
-    run();
-    EXPECT_TRUE(bflag);
-
-    args = {"-b", "-7"};
-    run();
-    EXPECT_FALSE(bflag);
-
-    // cause an out of bounds error internally
-    args = {"-b", "751615654161688126132138844896646748852"};
-    run();
-    EXPECT_TRUE(bflag);
-
-    args = {"-b", "-751615654161688126132138844896646748852"};
-    run();
-    EXPECT_FALSE(bflag);
+    EXPECT_THROW(run(), CLI::ArgumentMismatch);
 }
 
 TEST_F(TApp, ShortOpts) {
 
-    unsigned long long funnyint;
+    std::uint64_t funnyint{0};
     std::string someopt;
     app.add_flag("-z", funnyint);
     app.add_option("-y", someopt);
@@ -673,14 +624,14 @@ TEST_F(TApp, ShortOpts) {
 
     EXPECT_EQ(2u, app.count("-z"));
     EXPECT_EQ(1u, app.count("-y"));
-    EXPECT_EQ((unsigned long long)2, funnyint);
+    EXPECT_EQ(std::uint64_t{2}, funnyint);
     EXPECT_EQ("zyz", someopt);
     EXPECT_EQ(app.count_all(), 3u);
 }
 
 TEST_F(TApp, TwoParamTemplateOpts) {
 
-    double funnyint;
+    double funnyint{0.0};
     auto opt = app.add_option<double, unsigned int>("-y", funnyint);
 
     args = {"-y", "32"};
@@ -701,11 +652,11 @@ TEST_F(TApp, TwoParamTemplateOpts) {
 
 TEST_F(TApp, DefaultOpts) {
 
-    int i = 3;
+    int i{3};
     std::string s = "HI";
 
     app.add_option("-i,i", i);
-    app.add_option("-s,s", s)->capture_default_str(); //  Used to be different
+    app.add_option("-s,s", s)->capture_default_str();  //  Used to be different
 
     args = {"-i2", "9"};
 
@@ -800,9 +751,20 @@ TEST_F(TApp, TakeLastOptMulti) {
     EXPECT_EQ(vals, std::vector<int>({2, 3}));
 }
 
+TEST_F(TApp, TakeLastOptMulti_alternative_path) {
+    std::vector<int> vals;
+    app.add_option("--long", vals)->expected(2, -1)->take_last();
+
+    args = {"--long", "1", "2", "3"};
+
+    run();
+
+    EXPECT_EQ(vals, std::vector<int>({2, 3}));
+}
+
 TEST_F(TApp, TakeLastOptMultiCheck) {
     std::vector<int> vals;
-    auto opt = app.add_option("--long", vals)->expected(2)->take_last();
+    auto opt = app.add_option("--long", vals)->expected(-2)->take_last();
 
     opt->check(CLI::Validator(CLI::PositiveNumber).application_index(0));
     opt->check((!CLI::PositiveNumber).application_index(1));
@@ -826,7 +788,7 @@ TEST_F(TApp, TakeFirstOptMulti) {
 
 TEST_F(TApp, ComplexOptMulti) {
     std::complex<double> val;
-    app.add_complex("--long", val)->take_first();
+    app.add_complex("--long", val)->take_first()->allow_extra_args();
 
     args = {"--long", "1", "2", "3", "4"};
 
@@ -837,7 +799,7 @@ TEST_F(TApp, ComplexOptMulti) {
 }
 
 TEST_F(TApp, MissingValueNonRequiredOpt) {
-    int count;
+    int count{0};
     app.add_option("-c,--count", count);
 
     args = {"-c"};
@@ -1057,7 +1019,7 @@ TEST_F(TApp, RequiredPositionalVector) {
 // Tests positionals at end
 TEST_F(TApp, RequiredPositionalValidation) {
     std::vector<std::string> sources;
-    int dest;
+    int dest;  // required
     std::string d2;
     app.add_option("src", sources);
     app.add_option("dest", dest)->required()->check(CLI::PositiveNumber);
@@ -1141,7 +1103,7 @@ TEST_F(TApp, RequiredOptsUnlimited) {
 
     app.allow_extras(false);
     std::vector<std::string> remain;
-    app.add_option("positional", remain);
+    auto popt = app.add_option("positional", remain);
     run();
     EXPECT_EQ(strs, std::vector<std::string>({"one", "two"}));
     EXPECT_EQ(remain, std::vector<std::string>());
@@ -1157,6 +1119,12 @@ TEST_F(TApp, RequiredOptsUnlimited) {
     run();
     EXPECT_EQ(strs, std::vector<std::string>({"two"}));
     EXPECT_EQ(remain, std::vector<std::string>({"one"}));
+
+    args = {"--str", "one", "two"};
+    popt->required();
+    run();
+    EXPECT_EQ(strs, std::vector<std::string>({"one"}));
+    EXPECT_EQ(remain, std::vector<std::string>({"two"}));
 }
 
 TEST_F(TApp, RequiredOptsUnlimitedShort) {
@@ -1217,9 +1185,9 @@ TEST_F(TApp, OptsUnlimitedEnd) {
 TEST_F(TApp, RequireOptPriority) {
 
     std::vector<std::string> strs;
-    app.add_option("--str", strs)->required();
+    app.add_option("--str", strs);
     std::vector<std::string> remain;
-    app.add_option("positional", remain)->expected(2);
+    app.add_option("positional", remain)->expected(2)->required();
 
     args = {"--str", "one", "two", "three"};
     run();
@@ -1239,7 +1207,7 @@ TEST_F(TApp, RequireOptPriorityShort) {
     std::vector<std::string> strs;
     app.add_option("-s", strs)->required();
     std::vector<std::string> remain;
-    app.add_option("positional", remain)->expected(2);
+    app.add_option("positional", remain)->expected(2)->required();
 
     args = {"-s", "one", "two", "three"};
     run();
@@ -1254,7 +1222,7 @@ TEST_F(TApp, RequireOptPriorityShort) {
     EXPECT_EQ(remain, std::vector<std::string>({"two", "three"}));
 }
 
-TEST_F(TApp, NotRequiedExpectedDouble) {
+TEST_F(TApp, NotRequiredExpectedDouble) {
 
     std::vector<std::string> strs;
     app.add_option("--str", strs)->expected(2);
@@ -1264,7 +1232,7 @@ TEST_F(TApp, NotRequiedExpectedDouble) {
     EXPECT_THROW(run(), CLI::ArgumentMismatch);
 }
 
-TEST_F(TApp, NotRequiedExpectedDoubleShort) {
+TEST_F(TApp, NotRequiredExpectedDoubleShort) {
 
     std::vector<std::string> strs;
     app.add_option("-s", strs)->expected(2);
@@ -1276,7 +1244,7 @@ TEST_F(TApp, NotRequiedExpectedDoubleShort) {
 
 TEST_F(TApp, RequiredFlags) {
     app.add_flag("-a")->required();
-    app.add_flag("-b")->mandatory(); // Alternate term
+    app.add_flag("-b")->mandatory();  // Alternate term
 
     EXPECT_THROW(run(), CLI::RequiredError);
 
@@ -1292,9 +1260,9 @@ TEST_F(TApp, RequiredFlags) {
 
 TEST_F(TApp, CallbackFlags) {
 
-    int64_t value = 0;
+    std::int64_t value{0};
 
-    auto func = [&value](int64_t x) { value = x; };
+    auto func = [&value](std::int64_t x) { value = x; };
 
     app.add_flag_function("-v", func);
 
@@ -1312,31 +1280,10 @@ TEST_F(TApp, CallbackFlags) {
     EXPECT_THROW(app.add_flag_function("hi", func), CLI::IncorrectConstruction);
 }
 
-TEST_F(TApp, CallbackBoolFlags) {
-
-    bool value = false;
-
-    auto func = [&value]() { value = true; };
-
-    auto cback = app.add_flag_callback("--val", func);
-    args = {"--val"};
-    run();
-    EXPECT_TRUE(value);
-    value = false;
-    args = {"--val=false"};
-    run();
-    EXPECT_FALSE(value);
-
-    EXPECT_THROW(app.add_flag_callback("hi", func), CLI::IncorrectConstruction);
-    cback->multi_option_policy(CLI::MultiOptionPolicy::Throw);
-    args = {"--val", "--val=false"};
-    EXPECT_THROW(run(), CLI::ConversionError);
-}
-
 TEST_F(TApp, CallbackFlagsFalse) {
-    int64_t value = 0;
+    std::int64_t value = 0;
 
-    auto func = [&value](int64_t x) { value = x; };
+    auto func = [&value](std::int64_t x) { value = x; };
 
     app.add_flag_function("-v,-f{false},--val,--fval{false}", func);
 
@@ -1363,9 +1310,9 @@ TEST_F(TApp, CallbackFlagsFalse) {
 }
 
 TEST_F(TApp, CallbackFlagsFalseShortcut) {
-    int64_t value = 0;
+    std::int64_t value = 0;
 
-    auto func = [&value](int64_t x) { value = x; };
+    auto func = [&value](std::int64_t x) { value = x; };
 
     app.add_flag_function("-v,!-f,--val,!--fval", func);
 
@@ -1394,9 +1341,9 @@ TEST_F(TApp, CallbackFlagsFalseShortcut) {
 #if __cplusplus >= 201402L || _MSC_VER >= 1900
 TEST_F(TApp, CallbackFlagsAuto) {
 
-    int64_t value = 0;
+    std::int64_t value{0};
 
-    auto func = [&value](int64_t x) { value = x; };
+    auto func = [&value](std::int64_t x) { value = x; };
 
     app.add_flag("-v", func);
 
@@ -1453,7 +1400,7 @@ TEST_F(TApp, ForcedPositional) {
 
 TEST_F(TApp, MixedPositionals) {
 
-    int positional_int;
+    int positional_int{0};
     std::string positional_string;
     app.add_option("posit1,--posit1", positional_int, "");
     app.add_option("posit2,--posit2", positional_string, "");
@@ -1486,7 +1433,7 @@ TEST_F(TApp, BigPositional) {
 TEST_F(TApp, Reset) {
 
     app.add_flag("--simple");
-    double doub;
+    double doub{0.0};
     app.add_option("-d,--double", doub);
 
     args = {"--simple", "--double", "1.2"};
@@ -1546,7 +1493,7 @@ TEST_F(TApp, RemoveExcludesLinks) {
 
     args = {"--two"};
 
-    run(); // Mostly hoping it does not crash
+    run();  // Mostly hoping it does not crash
 }
 
 TEST_F(TApp, FileNotExists) {
@@ -1560,7 +1507,7 @@ TEST_F(TApp, FileNotExists) {
     run();
     EXPECT_EQ(myfile, filename);
 
-    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a')); // create file
+    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a'));  // create file
     EXPECT_TRUE(ok);
     EXPECT_THROW(run(), CLI::ValidationError);
     // deactivate the check, so it should run now
@@ -1580,7 +1527,7 @@ TEST_F(TApp, FileExists) {
 
     EXPECT_THROW(run(), CLI::ValidationError);
 
-    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a')); // create file
+    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a'));  // create file
     EXPECT_TRUE(ok);
     run();
     EXPECT_EQ(myfile, filename);
@@ -1599,7 +1546,7 @@ TEST_F(TApp, NotFileExists) {
 
     EXPECT_NO_THROW(run());
 
-    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a')); // create file
+    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a'));  // create file
     EXPECT_TRUE(ok);
     EXPECT_THROW(run(), CLI::ValidationError);
 
@@ -1607,110 +1554,9 @@ TEST_F(TApp, NotFileExists) {
     EXPECT_FALSE(CLI::ExistingFile(myfile).empty());
 }
 
-TEST_F(TApp, pair_check) {
-    std::string myfile{"pair_check_file.txt"};
-    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a')); // create file
-    EXPECT_TRUE(ok);
-
-    EXPECT_TRUE(CLI::ExistingFile(myfile).empty());
-    std::pair<std::string, int> findex;
-
-    auto v0 = CLI::ExistingFile;
-    v0.application_index(0);
-    auto v1 = CLI::PositiveNumber;
-    v1.application_index(1);
-    app.add_option("--file", findex)->check(v0)->check(v1);
-
-    args = {"--file", myfile, "2"};
-
-    EXPECT_NO_THROW(run());
-
-    EXPECT_EQ(findex.first, myfile);
-    EXPECT_EQ(findex.second, 2);
-
-    args = {"--file", myfile, "-3"};
-
-    EXPECT_THROW(run(), CLI::ValidationError);
-
-    args = {"--file", myfile, "2"};
-    std::remove(myfile.c_str());
-    EXPECT_THROW(run(), CLI::ValidationError);
-}
-
-// this will require that modifying the multi-option policy for tuples be allowed which it isn't at present
-/*
-TEST_F(TApp, pair_check_take_first) {
-    std::string myfile{"pair_check_file2.txt"};
-    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a')); // create file
-    EXPECT_TRUE(ok);
-
-    EXPECT_TRUE(CLI::ExistingFile(myfile).empty());
-    std::pair<std::string, int> findex;
-
-    auto opt = app.add_option("--file", findex)->check(CLI::ExistingFile)->check(CLI::PositiveNumber);
-    EXPECT_THROW(opt->get_validator(3), CLI::OptionNotFound);
-    opt->get_validator(0)->application_index(0);
-    opt->get_validator(1)->application_index(1);
-    opt->multi_option_policy(CLI::MultiOptionPolicy::TakeLast);
-    args = {"--file", "not_a_file.txt", "-16", "--file", myfile, "2"};
-    // should only check the last one
-    EXPECT_NO_THROW(run());
-
-    EXPECT_EQ(findex.first, myfile);
-    EXPECT_EQ(findex.second, 2);
-
-    opt->multi_option_policy(CLI::MultiOptionPolicy::TakeFirst);
-
-    EXPECT_THROW(run(), CLI::ValidationError);
-}
-*/
-TEST_F(TApp, VectorFixedString) {
-    std::vector<std::string> strvec;
-    std::vector<std::string> answer{"mystring", "mystring2", "mystring3"};
-
-    CLI::Option *opt = app.add_option("-s,--string", strvec)->expected(3);
-    EXPECT_EQ(3, opt->get_expected());
-
-    args = {"--string", "mystring", "mystring2", "mystring3"};
-    run();
-    EXPECT_EQ(3u, app.count("--string"));
-    EXPECT_EQ(answer, strvec);
-}
-
-TEST_F(TApp, VectorDefaultedFixedString) {
-    std::vector<std::string> strvec{"one"};
-    std::vector<std::string> answer{"mystring", "mystring2", "mystring3"};
-
-    CLI::Option *opt = app.add_option("-s,--string", strvec, "")->expected(3)->capture_default_str();
-    EXPECT_EQ(3, opt->get_expected());
-
-    args = {"--string", "mystring", "mystring2", "mystring3"};
-    run();
-    EXPECT_EQ(3u, app.count("--string"));
-    EXPECT_EQ(answer, strvec);
-}
-
-TEST_F(TApp, VectorIndexedValidator) {
-    std::vector<int> vvec;
-
-    CLI::Option *opt = app.add_option("-v", vvec);
-
-    args = {"-v", "1", "-1", "-v", "3", "-v", "-976"};
-    run();
-    EXPECT_EQ(4u, app.count("-v"));
-    EXPECT_EQ(4u, vvec.size());
-    opt->check(CLI::PositiveNumber.application_index(0));
-    opt->check((!CLI::PositiveNumber).application_index(1));
-    EXPECT_NO_THROW(run());
-    EXPECT_EQ(4u, vvec.size());
-    // v[3] would be negative
-    opt->check(CLI::PositiveNumber.application_index(3));
-    EXPECT_THROW(run(), CLI::ValidationError);
-}
-
 TEST_F(TApp, DefaultedResult) {
     std::string sval = "NA";
-    int ival;
+    int ival{0};
     auto opts = app.add_option("--string", sval)->capture_default_str();
     auto optv = app.add_option("--val", ival);
     args = {};
@@ -1720,46 +1566,10 @@ TEST_F(TApp, DefaultedResult) {
     opts->results(nString);
     EXPECT_EQ(nString, "NA");
     int newIval;
-    EXPECT_THROW(optv->results(newIval), CLI::ConversionError);
+    // EXPECT_THROW(optv->results(newIval), CLI::ConversionError);
     optv->default_str("442");
     optv->results(newIval);
     EXPECT_EQ(newIval, 442);
-}
-
-TEST_F(TApp, VectorUnlimString) {
-    std::vector<std::string> strvec;
-    std::vector<std::string> answer{"mystring", "mystring2", "mystring3"};
-
-    CLI::Option *opt = app.add_option("-s,--string", strvec);
-    EXPECT_EQ(-1, opt->get_expected());
-
-    args = {"--string", "mystring", "mystring2", "mystring3"};
-    run();
-    EXPECT_EQ(3u, app.count("--string"));
-    EXPECT_EQ(answer, strvec);
-
-    args = {"-s", "mystring", "mystring2", "mystring3"};
-    run();
-    EXPECT_EQ(3u, app.count("--string"));
-    EXPECT_EQ(answer, strvec);
-}
-
-TEST_F(TApp, VectorFancyOpts) {
-    std::vector<std::string> strvec;
-    std::vector<std::string> answer{"mystring", "mystring2", "mystring3"};
-
-    CLI::Option *opt = app.add_option("-s,--string", strvec)->required()->expected(3);
-    EXPECT_EQ(3, opt->get_expected());
-
-    args = {"--string", "mystring", "mystring2", "mystring3"};
-    run();
-    EXPECT_EQ(3u, app.count("--string"));
-    EXPECT_EQ(answer, strvec);
-
-    args = {"one", "two"};
-    EXPECT_THROW(run(), CLI::RequiredError);
-
-    EXPECT_THROW(run(), CLI::ParseError);
 }
 
 TEST_F(TApp, OriginalOrder) {
@@ -1792,6 +1602,8 @@ TEST_F(TApp, NeedsFlags) {
 
     args = {"--both"};
     EXPECT_THROW(run(), CLI::RequiresError);
+
+    EXPECT_NO_THROW(opt->needs(opt));
 }
 
 TEST_F(TApp, ExcludesFlags) {
@@ -1811,6 +1623,8 @@ TEST_F(TApp, ExcludesFlags) {
 
     args = {"--string", "--nostr"};
     EXPECT_THROW(run(), CLI::ExcludesError);
+
+    EXPECT_THROW(opt->excludes(opt), CLI::IncorrectConstruction);
 }
 
 TEST_F(TApp, ExcludesMixedFlags) {
@@ -1921,7 +1735,7 @@ TEST_F(TApp, Env) {
 
     put_env("CLI11_TEST_ENV_TMP", "2");
 
-    int val = 1;
+    int val{1};
     CLI::Option *vopt = app.add_option("--tmp", val)->envname("CLI11_TEST_ENV_TMP");
 
     run();
@@ -1936,8 +1750,28 @@ TEST_F(TApp, Env) {
     EXPECT_THROW(run(), CLI::RequiredError);
 }
 
+// curiously check if an environmental only option works
+TEST_F(TApp, EnvOnly) {
+
+    put_env("CLI11_TEST_ENV_TMP", "2");
+
+    int val{1};
+    CLI::Option *vopt = app.add_option("", val)->envname("CLI11_TEST_ENV_TMP");
+
+    run();
+
+    EXPECT_EQ(2, val);
+    EXPECT_EQ(1u, vopt->count());
+
+    vopt->required();
+    run();
+
+    unset_env("CLI11_TEST_ENV_TMP");
+    EXPECT_THROW(run(), CLI::RequiredError);
+}
+
 TEST_F(TApp, RangeInt) {
-    int x = 0;
+    int x{0};
     app.add_option("--one", x)->check(CLI::Range(3, 6));
 
     args = {"--one=1"};
@@ -1958,7 +1792,7 @@ TEST_F(TApp, RangeInt) {
 
 TEST_F(TApp, RangeDouble) {
 
-    double x = 0;
+    double x{0.0};
     /// Note that this must be a double in Range, too
     app.add_option("--one", x)->check(CLI::Range(3.0, 6.0));
 
@@ -1983,7 +1817,7 @@ TEST_F(TApp, AllowExtras) {
 
     app.allow_extras();
 
-    bool val = true;
+    bool val{true};
     app.add_flag("-f", val);
 
     args = {"-x", "-f"};
@@ -2043,8 +1877,8 @@ TEST_F(TApp, AllowExtrasCascadeDirect) {
     EXPECT_EQ(app.remaining(), std::vector<std::string>({"-x", "45", "-f", "27"}));
 
     CLI::App capp{"cascade_program"};
-    int v1 = 0;
-    int v2 = 0;
+    int v1{0};
+    int v2{0};
     capp.add_option("-x", v1);
     capp.add_option("-f", v2);
 
@@ -2055,8 +1889,8 @@ TEST_F(TApp, AllowExtrasCascadeDirect) {
 
 TEST_F(TApp, AllowExtrasArgModify) {
 
-    int v1 = 0;
-    int v2 = 0;
+    int v1{0};
+    int v2{0};
     app.allow_extras();
     app.add_option("-f", v2);
     args = {"27", "-f", "45", "-x"};
@@ -2134,7 +1968,7 @@ TEST_F(TApp, FallthroughParents) {
 }
 
 TEST_F(TApp, OptionWithDefaults) {
-    int someint = 2;
+    int someint{2};
     app.add_option("-a", someint)->capture_default_str();
 
     args = {"-a1", "-a2"};
@@ -2143,7 +1977,7 @@ TEST_F(TApp, OptionWithDefaults) {
 }
 
 // Added to test ->transform
-TEST_F(TApp, OrderedModifingTransforms) {
+TEST_F(TApp, OrderedModifyingTransforms) {
     std::vector<std::string> val;
     auto m = app.add_option("-m", val);
     m->transform([](std::string x) { return x + "1"; });
@@ -2191,38 +2025,6 @@ TEST_F(TApp, EachItem) {
     EXPECT_EQ(results, dummy);
 }
 
-// #87
-TEST_F(TApp, CustomDoubleOption) {
-
-    std::pair<int, double> custom_opt;
-
-    auto opt = app.add_option("posit", [&custom_opt](CLI::results_t vals) {
-        custom_opt = {stol(vals.at(0)), stod(vals.at(1))};
-        return true;
-    });
-    opt->type_name("INT FLOAT")->type_size(2);
-
-    args = {"12", "1.5"};
-
-    run();
-    EXPECT_EQ(custom_opt.first, 12);
-    EXPECT_DOUBLE_EQ(custom_opt.second, 1.5);
-}
-
-// now with tuple support this is possible
-TEST_F(TApp, CustomDoubleOptionAlt) {
-
-    std::pair<int, double> custom_opt;
-
-    app.add_option("posit", custom_opt);
-
-    args = {"12", "1.5"};
-
-    run();
-    EXPECT_EQ(custom_opt.first, 12);
-    EXPECT_DOUBLE_EQ(custom_opt.second, 1.5);
-}
-
 // #128
 TEST_F(TApp, RepeatingMultiArgumentOptions) {
     std::vector<std::string> entries;
@@ -2257,8 +2059,8 @@ TEST_F(TApp, EmptyOptionFail) {
 }
 
 TEST_F(TApp, BeforeRequirements) {
-    app.add_flag_function("-a", [](int64_t) { throw CLI::Success(); });
-    app.add_flag_function("-b", [](int64_t) { throw CLI::CallForHelp(); });
+    app.add_flag_function("-a", [](std::int64_t) { throw CLI::Success(); });
+    app.add_flag_function("-b", [](std::int64_t) { throw CLI::CallForHelp(); });
 
     args = {"extra"};
     EXPECT_THROW(run(), CLI::ExtrasError);
@@ -2281,7 +2083,7 @@ TEST_F(TApp, BeforeRequirements) {
 // #209
 TEST_F(TApp, CustomUserSepParse) {
 
-    std::vector<int> vals = {1, 2, 3};
+    std::vector<int> vals{1, 2, 3};
     args = {"--idx", "1,2,3"};
     auto opt = app.add_option("--idx", vals)->delimiter(',');
     run();
@@ -2325,7 +2127,7 @@ TEST_F(TApp, BadUserSepParse) {
 // #209
 TEST_F(TApp, CustomUserSepParse2) {
 
-    std::vector<int> vals = {1, 2, 3};
+    std::vector<int> vals{1, 2, 3};
     args = {"--idx", "1,2,"};
     auto opt = app.add_option("--idx", vals)->delimiter(',');
     run();
@@ -2340,7 +2142,7 @@ TEST_F(TApp, CustomUserSepParse2) {
 
 TEST_F(TApp, CustomUserSepParseFunction) {
 
-    std::vector<int> vals = {1, 2, 3};
+    std::vector<int> vals{1, 2, 3};
     args = {"--idx", "1,2,3"};
     app.add_option_function<std::vector<int>>("--idx", [&vals](std::vector<int> v) { vals = std::move(v); })
         ->delimiter(',');

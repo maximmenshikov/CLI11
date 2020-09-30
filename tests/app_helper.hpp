@@ -1,3 +1,9 @@
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #pragma once
 
 #ifdef CLI11_SINGLE_FILE
@@ -8,13 +14,17 @@
 
 #include "gtest/gtest.h"
 #include <iostream>
+#include <string>
+#include <utility>
+#include <vector>
 
-typedef std::vector<std::string> input_t;
+using input_t = std::vector<std::string>;
 
-struct TApp : public ::testing::Test {
+class TApp_base {
+  public:
     CLI::App app{"My Test Program"};
-    input_t args;
-
+    input_t args{};
+    virtual ~TApp_base() = default;
     void run() {
         // It is okay to re-parse - clear is called automatically before a parse.
         input_t newargs = args;
@@ -23,17 +33,19 @@ struct TApp : public ::testing::Test {
     }
 };
 
+class TApp : public TApp_base, public ::testing::Test {};
+
 class TempFile {
-    std::string _name;
+    std::string _name{};
 
   public:
-    explicit TempFile(std::string name) : _name(name) {
+    explicit TempFile(std::string name) : _name(std::move(name)) {
         if(!CLI::NonexistentPath(_name).empty())
             throw std::runtime_error(_name);
     }
 
     ~TempFile() {
-        std::remove(_name.c_str()); // Doesn't matter if returns 0 or not
+        std::remove(_name.c_str());  // Doesn't matter if returns 0 or not
     }
 
     operator const std::string &() const { return _name; }

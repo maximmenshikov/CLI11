@@ -1,45 +1,49 @@
+
 function(add_cli_exe T)
     add_executable(${T} ${ARGN} ${CLI11_headers})
     target_link_libraries(${T} PUBLIC CLI11)
-    set_target_properties(
-         ${T} PROPERTIES
-         FOLDER "Examples"
-         )
-
-    if(CLANG_TIDY_EXE)
-    set_target_properties(
-        ${T} PROPERTIES
-        CXX_CLANG_TIDY "${DO_CLANG_TIDY}"
-        )
+    set_property(TARGET ${T} PROPERTY FOLDER "Examples")
+    if(CLI11_FORCE_LIBCXX)
+        set_property(TARGET ${T} APPEND_STRING PROPERTY LINK_FLAGS -stdlib=libc++)
+    endif()
+    if(CLI11_CLANG_TIDY)
+        set_property(TARGET ${T} PROPERTY CXX_CLANG_TIDY "${DO_CLANG_TIDY}")
     endif()
 endfunction()
 
-option(CLI11_EXAMPLE_JSON OFF)
-if(CLI11_EXAMPLE_JSON)
-    if(NOT EXISTS "${CLI11_SOURCE_DIR}/extern/json/single_include/nlohmann/json.hpp")
-        message(ERROR "You are missing the json package for CLI11_EXAMPLE_JSON. Please update your submodules (git submodule update --init)")
+if(CLI11_BUILD_EXAMPLES_JSON)
+    message(STATUS "Using nlohmann/json")
+    FetchContent_Declare(json
+        URL https://github.com/nlohmann/json/releases/download/v3.7.3/include.zip
+        URL_HASH "SHA256=87b5884741427220d3a33df1363ae0e8b898099fbc59f1c451113f6732891014"
+    )
+
+    FetchContent_GetProperties(json)
+    if (NOT json_POPULATED)
+        FetchContent_Populate(json)
     endif()
-    if(CMAKE_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.8)
-        message(WARNING "The json example requires GCC 4.8+ (requirement on json library)")
-    endif()
+
     add_cli_exe(json json.cpp)
-    target_include_directories(json PUBLIC SYSTEM "${CLI11_SOURCE_DIR}/extern/json/single_include")
+    target_include_directories(json PUBLIC SYSTEM "${json_SOURCE_DIR}/single_include")
 
     add_test(NAME json_config_out COMMAND json --item 2)
     set_property(TEST json_config_out PROPERTY PASS_REGULAR_EXPRESSION
-        "{"
-        "\"item\": \"2\""
-        "\"simple\": false"
-        "}")
+        [[{]]
+        [["item": "2"]]
+        [["simple": false]]
+        [[}]]
+        )
 
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/input.json" [=[{"item":3,"simple":false}]=])
     add_test(NAME json_config_in COMMAND json --config "${CMAKE_CURRENT_BINARY_DIR}/input.json")
     set_property(TEST json_config_in PROPERTY PASS_REGULAR_EXPRESSION
-        "{"
-        "\"item\": \"3\""
-        "\"simple\": false"
-        "}")
+        [[{]]
+        [["item": "3"]]
+        [["simple": false]]
+        [[}]]
+)
 endif()
+
 
 add_cli_exe(simple simple.cpp)
 add_test(NAME simple_basic COMMAND simple)
@@ -50,6 +54,9 @@ set_property(TEST simple_all PROPERTY PASS_REGULAR_EXPRESSION
     "Received flag: 2 (2) times"
     "Some value: 1.2")
 
+add_test(NAME simple_version COMMAND simple --version)
+set_property(TEST simple_version PROPERTY PASS_REGULAR_EXPRESSION
+    "${CLI11_VERSION}")
 
 add_cli_exe(subcommands subcommands.cpp)
 add_test(NAME subcommands_none COMMAND subcommands)
@@ -203,6 +210,11 @@ add_test(NAME enum_fail COMMAND enum -l 4)
 set_property(TEST enum_fail PROPERTY PASS_REGULAR_EXPRESSION
     "--level: Check 4 value in {" "FAILED")
 
+add_cli_exe(enum_ostream enum_ostream.cpp)
+add_test(NAME enum_ostream_pass COMMAND enum_ostream --level medium)
+set_property(TEST enum_ostream_pass PROPERTY PASS_REGULAR_EXPRESSION
+    "Enum received: Medium")
+
 add_cli_exe(digit_args digit_args.cpp)
 add_test(NAME digit_args COMMAND digit_args -h)
 set_property(TEST digit_args PROPERTY PASS_REGULAR_EXPRESSION
@@ -226,3 +238,21 @@ add_cli_exe(nested nested.cpp)
 add_cli_exe(subcom_help subcom_help.cpp)
 add_test(NAME subcom_help_normal COMMAND subcom_help sub --help)
 add_test(NAME subcom_help_reversed COMMAND subcom_help --help sub)
+
+add_cli_exe(retired retired.cpp)
+add_test(NAME retired_retired_test COMMAND retired --retired_option)
+add_test(NAME retired_retired_test2 COMMAND retired --retired_option 567)
+add_test(NAME retired_retired_test3 COMMAND retired --retired_option2 567 689 789)
+add_test(NAME retired_deprecated COMMAND retired --deprecate 19 20)
+
+set_property(TEST retired_retired_test PROPERTY PASS_REGULAR_EXPRESSION
+    "WARNING.*retired")
+
+set_property(TEST retired_retired_test2 PROPERTY PASS_REGULAR_EXPRESSION
+    "WARNING.*retired")
+
+set_property(TEST retired_retired_test3 PROPERTY PASS_REGULAR_EXPRESSION
+    "WARNING.*retired")
+
+set_property(TEST retired_deprecated PROPERTY PASS_REGULAR_EXPRESSION
+    "deprecated.*not_deprecated")

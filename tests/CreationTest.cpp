@@ -1,3 +1,9 @@
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "app_helper.hpp"
 #include <cstdlib>
 
@@ -164,53 +170,13 @@ TEST_F(TApp, MultipleSubcomNoMatchingInplaceUnderscore2) {
 TEST_F(TApp, IncorrectConstructionFlagPositional1) { EXPECT_THROW(app.add_flag("cat"), CLI::IncorrectConstruction); }
 
 TEST_F(TApp, IncorrectConstructionFlagPositional2) {
-    int x;
+    int x{0};
     EXPECT_THROW(app.add_flag("cat", x), CLI::IncorrectConstruction);
 }
 
 TEST_F(TApp, IncorrectConstructionFlagPositional3) {
-    bool x;
+    bool x{false};
     EXPECT_THROW(app.add_flag("cat", x), CLI::IncorrectConstruction);
-}
-
-TEST_F(TApp, IncorrectConstructionFlagExpected) {
-    auto cat = app.add_flag("--cat");
-    EXPECT_THROW(cat->expected(0), CLI::IncorrectConstruction);
-    EXPECT_THROW(cat->expected(1), CLI::IncorrectConstruction);
-}
-
-TEST_F(TApp, IncorrectConstructionOptionAsFlag) {
-    int x;
-    auto cat = app.add_option("--cat", x);
-    EXPECT_NO_THROW(cat->expected(1));
-    EXPECT_THROW(cat->expected(0), CLI::IncorrectConstruction);
-    EXPECT_THROW(cat->expected(2), CLI::IncorrectConstruction);
-}
-
-TEST_F(TApp, IncorrectConstructionOptionAsVector) {
-    int x;
-    auto cat = app.add_option("--cat", x);
-    EXPECT_THROW(cat->expected(2), CLI::IncorrectConstruction);
-}
-
-TEST_F(TApp, IncorrectConstructionVectorAsFlag) {
-    std::vector<int> x;
-    auto cat = app.add_option("--cat", x);
-    EXPECT_THROW(cat->expected(0), CLI::IncorrectConstruction);
-}
-
-TEST_F(TApp, IncorrectConstructionVectorTakeLast) {
-    std::vector<int> vec;
-    auto cat = app.add_option("--vec", vec);
-    EXPECT_THROW(cat->multi_option_policy(CLI::MultiOptionPolicy::TakeLast), CLI::IncorrectConstruction);
-}
-
-TEST_F(TApp, IncorrectConstructionTakeLastExpected) {
-    std::vector<int> vec;
-    auto cat = app.add_option("--vec", vec);
-    cat->expected(1);
-    ASSERT_NO_THROW(cat->multi_option_policy(CLI::MultiOptionPolicy::TakeLast));
-    EXPECT_THROW(cat->expected(2), CLI::IncorrectConstruction);
 }
 
 TEST_F(TApp, IncorrectConstructionNeedsCannotFind) {
@@ -227,14 +193,16 @@ TEST_F(TApp, IncorrectConstructionDuplicateNeeds) {
     auto cat = app.add_flag("--cat");
     auto other = app.add_flag("--other");
     ASSERT_NO_THROW(cat->needs(other));
-    EXPECT_THROW(cat->needs(other), CLI::OptionAlreadyAdded);
+    // duplicated needs is redundant but not an error
+    EXPECT_NO_THROW(cat->needs(other));
 }
 
 TEST_F(TApp, IncorrectConstructionDuplicateNeedsTxt) {
     auto cat = app.add_flag("--cat");
     app.add_flag("--other");
     ASSERT_NO_THROW(cat->needs("--other"));
-    EXPECT_THROW(cat->needs("--other"), CLI::OptionAlreadyAdded);
+    // duplicate needs is redundant but not an error
+    EXPECT_NO_THROW(cat->needs("--other"));
 }
 
 // Now allowed
@@ -258,7 +226,7 @@ TEST_F(TApp, CheckName) {
     auto long2 = app.add_flag("--Long2");
     auto short1 = app.add_flag("-a");
     auto short2 = app.add_flag("-B");
-    int x, y;
+    int x{0}, y{0};
     auto pos1 = app.add_option("pos1", x);
     auto pos2 = app.add_option("pOs2", y);
 
@@ -286,7 +254,7 @@ TEST_F(TApp, CheckNameNoCase) {
     auto long2 = app.add_flag("--Long2")->ignore_case();
     auto short1 = app.add_flag("-a")->ignore_case();
     auto short2 = app.add_flag("-B")->ignore_case();
-    int x, y;
+    int x{0}, y{0};
     auto pos1 = app.add_option("pos1", x)->ignore_case();
     auto pos2 = app.add_option("pOs2", y)->ignore_case();
 
@@ -313,7 +281,7 @@ TEST_F(TApp, CheckNameNoUnderscore) {
     auto long1 = app.add_flag("--longoption1")->ignore_underscore();
     auto long2 = app.add_flag("--long_option2")->ignore_underscore();
 
-    int x, y;
+    int x{0}, y{0};
     auto pos1 = app.add_option("pos_option_1", x)->ignore_underscore();
     auto pos2 = app.add_option("posoption2", y)->ignore_underscore();
 
@@ -344,7 +312,7 @@ TEST_F(TApp, CheckNameNoCaseNoUnderscore) {
     auto long1 = app.add_flag("--LongoptioN1")->ignore_underscore()->ignore_case();
     auto long2 = app.add_flag("--long_Option2")->ignore_case()->ignore_underscore();
 
-    int x, y;
+    int x{0}, y{0};
     auto pos1 = app.add_option("pos_Option_1", x)->ignore_underscore()->ignore_case();
     auto pos2 = app.add_option("posOption2", y)->ignore_case()->ignore_underscore();
 
@@ -372,7 +340,7 @@ TEST_F(TApp, CheckNameNoCaseNoUnderscore) {
 }
 
 TEST_F(TApp, PreSpaces) {
-    int x;
+    int x{0};
     auto myapp = app.add_option(" -a, --long, other", x);
 
     EXPECT_TRUE(myapp->check_lname("long"));
@@ -381,7 +349,7 @@ TEST_F(TApp, PreSpaces) {
 }
 
 TEST_F(TApp, AllSpaces) {
-    int x;
+    int x{0};
     auto myapp = app.add_option(" -a , --long , other ", x);
 
     EXPECT_TRUE(myapp->check_lname("long"));
@@ -393,7 +361,7 @@ TEST_F(TApp, OptionFromDefaults) {
     app.option_defaults()->required();
 
     // Options should remember defaults
-    int x;
+    int x{0};
     auto opt = app.add_option("--simple", x);
     EXPECT_TRUE(opt->get_required());
 
@@ -449,7 +417,7 @@ TEST_F(TApp, OptionFromDefaultsSubcommands) {
 }
 
 TEST_F(TApp, GetNameCheck) {
-    int x;
+    int x{0};
     auto a = app.add_flag("--that");
     auto b = app.add_flag("-x");
     auto c = app.add_option("pos", x);
@@ -481,6 +449,7 @@ TEST_F(TApp, SubcommandDefaults) {
     EXPECT_FALSE(app.get_allow_windows_style_options());
 #endif
     EXPECT_FALSE(app.get_fallthrough());
+    EXPECT_FALSE(app.get_configurable());
     EXPECT_FALSE(app.get_validate_positionals());
 
     EXPECT_EQ(app.get_footer(), "");
@@ -493,6 +462,7 @@ TEST_F(TApp, SubcommandDefaults) {
     app.immediate_callback();
     app.ignore_case();
     app.ignore_underscore();
+    app.configurable();
 #ifdef _WIN32
     app.allow_windows_style_options(false);
 #else
@@ -520,6 +490,7 @@ TEST_F(TApp, SubcommandDefaults) {
 #endif
     EXPECT_TRUE(app2->get_fallthrough());
     EXPECT_TRUE(app2->get_validate_positionals());
+    EXPECT_TRUE(app2->get_configurable());
     EXPECT_EQ(app2->get_footer(), "footy");
     EXPECT_EQ(app2->get_group(), "Stuff");
     EXPECT_EQ(app2->get_require_subcommand_min(), 0u);
@@ -558,15 +529,21 @@ TEST_F(TApp, SubcommandMinMax) {
 }
 
 TEST_F(TApp, GetOptionList) {
-    int two;
+    int two{0};
     auto flag = app.add_flag("--one");
     auto opt = app.add_option("--two", two);
 
-    auto opt_list = app.get_options();
+    const CLI::App &const_app = app;  // const alias to force use of const-methods
+    std::vector<const CLI::Option *> opt_list = const_app.get_options();
 
-    ASSERT_EQ(opt_list.size(), static_cast<size_t>(3));
+    ASSERT_EQ(opt_list.size(), static_cast<std::size_t>(3));
     EXPECT_EQ(opt_list.at(1), flag);
     EXPECT_EQ(opt_list.at(2), opt);
+
+    std::vector<CLI::Option *> nonconst_opt_list = app.get_options();
+    for(std::size_t i = 0; i < opt_list.size(); ++i) {
+        EXPECT_EQ(nonconst_opt_list.at(i), opt_list.at(i));
+    }
 }
 
 TEST(ValidatorTests, TestValidatorCreation) {
@@ -733,10 +710,10 @@ TEST(ValidatorTests, ValidatorDefaults) {
 
 class Unstreamable {
   private:
-    int x_ = -1;
+    int x_{-1};
 
   public:
-    Unstreamable() {}
+    Unstreamable() = default;
     int get_x() const { return x_; }
     void set_x(int x) { x_ = x; }
 };
@@ -751,7 +728,8 @@ std::istream &operator>>(std::istream &in, Unstreamable &value) {
     return in;
 }
 // these need to be different classes otherwise the definitions conflict
-static_assert(CLI::detail::is_istreamable<Unstreamable>::value, "Unstreamable type is still unstreamable");
+static_assert(CLI::detail::is_istreamable<Unstreamable>::value,
+              "Unstreamable type is still unstreamable and it should be");
 
 TEST_F(TApp, MakeUnstreamableOptions) {
     Unstreamable value;

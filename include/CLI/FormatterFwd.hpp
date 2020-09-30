@@ -1,13 +1,17 @@
-#pragma once
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
 
-// Distributed under the 3-Clause BSD License.  See accompanying
-// file LICENSE or https://github.com/CLIUtils/CLI11 for details.
+#pragma once
 
 #include <map>
 #include <string>
 #include <utility>
+#include <vector>
 
-#include "CLI/StringTools.hpp"
+#include "StringTools.hpp"
 
 namespace CLI {
 
@@ -20,9 +24,9 @@ class App;
 /// the second argument.
 
 enum class AppFormatMode {
-    Normal, //< The normal, detailed help
-    All,    //< A fully expanded help
-    Sub,    //< Used when printed as part of expanded subcommand
+    Normal,  ///< The normal, detailed help
+    All,     ///< A fully expanded help
+    Sub,     ///< Used when printed as part of expanded subcommand
 };
 
 /// This is the minimum requirements to run a formatter.
@@ -35,11 +39,11 @@ class FormatterBase {
     ///@{
 
     /// The width of the first column
-    size_t column_width_{30};
+    std::size_t column_width_{30};
 
     /// @brief The required help printout labels (user changeable)
     /// Values are Needs, Excludes, etc.
-    std::map<std::string, std::string> labels_;
+    std::map<std::string, std::string> labels_{};
 
     ///@}
     /// @name Basic
@@ -51,7 +55,7 @@ class FormatterBase {
     FormatterBase(FormatterBase &&) = default;
 
     /// Adding a destructor in this form to work around bug in GCC 4.7
-    virtual ~FormatterBase() noexcept {} // NOLINT(modernize-use-equals-default)
+    virtual ~FormatterBase() noexcept {}  // NOLINT(modernize-use-equals-default)
 
     /// This is the key method that puts together help
     virtual std::string make_help(const App *, std::string, AppFormatMode) const = 0;
@@ -64,7 +68,7 @@ class FormatterBase {
     void label(std::string key, std::string val) { labels_[key] = val; }
 
     /// Set the column width
-    void column_width(size_t val) { column_width_ = val; }
+    void column_width(std::size_t val) { column_width_ = val; }
 
     ///@}
     /// @name Getters
@@ -79,7 +83,7 @@ class FormatterBase {
     }
 
     /// Get the current column width
-    size_t get_column_width() const { return column_width_; }
+    std::size_t get_column_width() const { return column_width_; }
 
     ///@}
 };
@@ -96,7 +100,7 @@ class FormatterLambda final : public FormatterBase {
     explicit FormatterLambda(funct_t funct) : lambda_(std::move(funct)) {}
 
     /// Adding a destructor (mostly to make GCC 4.7 happy)
-    ~FormatterLambda() noexcept override {} // NOLINT(modernize-use-equals-default)
+    ~FormatterLambda() noexcept override {}  // NOLINT(modernize-use-equals-default)
 
     /// This will simply call the lambda function
     std::string make_help(const App *app, std::string name, AppFormatMode mode) const override {
@@ -173,4 +177,4 @@ class Formatter : public FormatterBase {
     ///@}
 };
 
-} // namespace CLI
+}  // namespace CLI

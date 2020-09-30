@@ -1,3 +1,9 @@
+// Copyright (c) 2017-2020, University of Cincinnati, developed by Henry Schreiner
+// under NSF AWARD 1414736 and by the respective contributors.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "app_helper.hpp"
 
 #include <array>
@@ -6,8 +12,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
+#include <map>
 #include <string>
 #include <tuple>
+#include <unordered_map>
+#include <utility>
 
 class NotStreamable {};
 
@@ -42,13 +51,83 @@ TEST(TypeTools, type_size) {
     V = CLI::detail::type_count<void>::value;
     EXPECT_EQ(V, 0);
     V = CLI::detail::type_count<std::vector<double>>::value;
-    EXPECT_EQ(V, -1);
+    EXPECT_EQ(V, 1);
     V = CLI::detail::type_count<std::tuple<double, int>>::value;
     EXPECT_EQ(V, 2);
     V = CLI::detail::type_count<std::tuple<std::string, double, int>>::value;
     EXPECT_EQ(V, 3);
     V = CLI::detail::type_count<std::array<std::string, 5>>::value;
     EXPECT_EQ(V, 5);
+    V = CLI::detail::type_count<std::vector<std::pair<std::string, double>>>::value;
+    EXPECT_EQ(V, 2);
+    V = CLI::detail::type_count<std::tuple<std::pair<std::string, double>>>::value;
+    EXPECT_EQ(V, 2);
+    V = CLI::detail::type_count<std::tuple<int, std::pair<std::string, double>>>::value;
+    EXPECT_EQ(V, 3);
+    V = CLI::detail::type_count<std::tuple<std::pair<int, double>, std::pair<std::string, double>>>::value;
+    EXPECT_EQ(V, 4);
+    // maps
+    V = CLI::detail::type_count<std::map<int, std::pair<int, double>>>::value;
+    EXPECT_EQ(V, 3);
+    // three level tuples
+    V = CLI::detail::type_count<std::tuple<int, std::pair<int, std::tuple<int, double, std::string>>>>::value;
+    EXPECT_EQ(V, 5);
+    V = CLI::detail::type_count<std::pair<int, std::vector<int>>>::value;
+    EXPECT_GE(V, CLI::detail::expected_max_vector_size);
+    V = CLI::detail::type_count<std::vector<std::vector<int>>>::value;
+    EXPECT_EQ(V, CLI::detail::expected_max_vector_size);
+}
+
+TEST(TypeTools, type_size_min) {
+    auto V = CLI::detail::type_count_min<int>::value;
+    EXPECT_EQ(V, 1);
+    V = CLI::detail::type_count_min<void>::value;
+    EXPECT_EQ(V, 0);
+    V = CLI::detail::type_count_min<std::vector<double>>::value;
+    EXPECT_EQ(V, 1);
+    V = CLI::detail::type_count_min<std::tuple<double, int>>::value;
+    EXPECT_EQ(V, 2);
+    V = CLI::detail::type_count_min<std::tuple<std::string, double, int>>::value;
+    EXPECT_EQ(V, 3);
+    V = CLI::detail::type_count_min<std::array<std::string, 5>>::value;
+    EXPECT_EQ(V, 5);
+    V = CLI::detail::type_count_min<std::vector<std::pair<std::string, double>>>::value;
+    EXPECT_EQ(V, 2);
+    V = CLI::detail::type_count_min<std::tuple<std::pair<std::string, double>>>::value;
+    EXPECT_EQ(V, 2);
+    V = CLI::detail::type_count_min<std::tuple<int, std::pair<std::string, double>>>::value;
+    EXPECT_EQ(V, 3);
+    V = CLI::detail::type_count_min<std::tuple<std::pair<int, double>, std::pair<std::string, double>>>::value;
+    EXPECT_EQ(V, 4);
+    // maps
+    V = CLI::detail::type_count_min<std::map<int, std::pair<int, double>>>::value;
+    EXPECT_EQ(V, 3);
+    // three level tuples
+    V = CLI::detail::type_count_min<std::tuple<int, std::pair<int, std::tuple<int, double, std::string>>>>::value;
+    EXPECT_EQ(V, 5);
+    V = CLI::detail::type_count_min<std::pair<int, std::vector<int>>>::value;
+    EXPECT_EQ(V, 2);
+    V = CLI::detail::type_count_min<std::vector<std::vector<int>>>::value;
+    EXPECT_EQ(V, 1);
+    V = CLI::detail::type_count_min<std::vector<std::vector<std::pair<int, int>>>>::value;
+    EXPECT_EQ(V, 2);
+}
+
+TEST(TypeTools, expected_count) {
+    auto V = CLI::detail::expected_count<int>::value;
+    EXPECT_EQ(V, 1);
+    V = CLI::detail::expected_count<void>::value;
+    EXPECT_EQ(V, 0);
+    V = CLI::detail::expected_count<std::vector<double>>::value;
+    EXPECT_EQ(V, CLI::detail::expected_max_vector_size);
+    V = CLI::detail::expected_count<std::tuple<double, int>>::value;
+    EXPECT_EQ(V, 1);
+    V = CLI::detail::expected_count<std::tuple<std::string, double, int>>::value;
+    EXPECT_EQ(V, 1);
+    V = CLI::detail::expected_count<std::array<std::string, 5>>::value;
+    EXPECT_EQ(V, 1);
+    V = CLI::detail::expected_count<std::vector<std::pair<std::string, double>>>::value;
+    EXPECT_EQ(V, CLI::detail::expected_max_vector_size);
 }
 
 TEST(Split, SimpleByToken) {
@@ -85,8 +164,8 @@ TEST(String, InvalidName) {
 }
 
 TEST(StringTools, Modify) {
-    int cnt = 0;
-    std::string newString = CLI::detail::find_and_modify("======", "=", [&cnt](std::string &str, size_t index) {
+    int cnt{0};
+    std::string newString = CLI::detail::find_and_modify("======", "=", [&cnt](std::string &str, std::size_t index) {
         if((++cnt) % 2 == 0) {
             str[index] = ':';
         }
@@ -97,7 +176,7 @@ TEST(StringTools, Modify) {
 
 TEST(StringTools, Modify2) {
     std::string newString =
-        CLI::detail::find_and_modify("this is a string test", "is", [](std::string &str, size_t index) {
+        CLI::detail::find_and_modify("this is a string test", "is", [](std::string &str, std::size_t index) {
             if((index > 1) && (str[index - 1] != ' ')) {
                 str[index] = 'a';
                 str[index + 1] = 't';
@@ -109,7 +188,7 @@ TEST(StringTools, Modify2) {
 
 TEST(StringTools, Modify3) {
     // this picks up 3 sets of 3 after the 'b' then collapses the new first set
-    std::string newString = CLI::detail::find_and_modify("baaaaaaaaaa", "aaa", [](std::string &str, size_t index) {
+    std::string newString = CLI::detail::find_and_modify("baaaaaaaaaa", "aaa", [](std::string &str, std::size_t index) {
         str.erase(index, 3);
         str.insert(str.begin(), 'a');
         return 0u;
@@ -198,7 +277,7 @@ TEST(Trim, TrimCopy) {
 TEST(Validators, FileExists) {
     std::string myfile{"TestFileNotUsed.txt"};
     EXPECT_FALSE(CLI::ExistingFile(myfile).empty());
-    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a')); // create file
+    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a'));  // create file
     EXPECT_TRUE(ok);
     EXPECT_TRUE(CLI::ExistingFile(myfile).empty());
 
@@ -209,7 +288,7 @@ TEST(Validators, FileExists) {
 TEST(Validators, FileNotExists) {
     std::string myfile{"TestFileNotUsed.txt"};
     EXPECT_TRUE(CLI::NonexistentPath(myfile).empty());
-    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a')); // create file
+    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a'));  // create file
     EXPECT_TRUE(ok);
     EXPECT_FALSE(CLI::NonexistentPath(myfile).empty());
 
@@ -235,7 +314,7 @@ TEST(Validators, DirectoryNotExists) {
 TEST(Validators, DirectoryIsFile) {
     std::string myfile{"TestFileNotUsed.txt"};
     EXPECT_TRUE(CLI::NonexistentPath(myfile).empty());
-    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a')); // create file
+    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a'));  // create file
     EXPECT_TRUE(ok);
     EXPECT_FALSE(CLI::ExistingDirectory(myfile).empty());
 
@@ -251,7 +330,7 @@ TEST(Validators, PathExistsDir) {
 TEST(Validators, PathExistsFile) {
     std::string myfile{"TestFileNotUsed.txt"};
     EXPECT_FALSE(CLI::ExistingPath(myfile).empty());
-    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a')); // create file
+    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a'));  // create file
     EXPECT_TRUE(ok);
     EXPECT_TRUE(CLI::ExistingPath(myfile).empty());
 
@@ -277,6 +356,8 @@ TEST(Validators, IPValidate1) {
     EXPECT_FALSE(CLI::ValidIPV4(ip).empty());
     ip = "aaa";
     EXPECT_FALSE(CLI::ValidIPV4(ip).empty());
+    ip = "1.2.3.abc";
+    EXPECT_FALSE(CLI::ValidIPV4(ip).empty());
     ip = "11.22";
     EXPECT_FALSE(CLI::ValidIPV4(ip).empty());
 }
@@ -289,11 +370,34 @@ TEST(Validators, PositiveValidator) {
     num = "10000";
     EXPECT_TRUE(CLI::PositiveNumber(num).empty());
     num = "0";
+    EXPECT_FALSE(CLI::PositiveNumber(num).empty());
+    num = "+0.5";
     EXPECT_TRUE(CLI::PositiveNumber(num).empty());
     num = "-1";
     EXPECT_FALSE(CLI::PositiveNumber(num).empty());
+    num = "-1.5";
+    EXPECT_FALSE(CLI::PositiveNumber(num).empty());
     num = "a";
     EXPECT_FALSE(CLI::PositiveNumber(num).empty());
+}
+
+TEST(Validators, NonNegativeValidator) {
+    std::string num = "1.1.1.1";
+    EXPECT_FALSE(CLI::NonNegativeNumber(num).empty());
+    num = "1";
+    EXPECT_TRUE(CLI::NonNegativeNumber(num).empty());
+    num = "10000";
+    EXPECT_TRUE(CLI::NonNegativeNumber(num).empty());
+    num = "0";
+    EXPECT_TRUE(CLI::NonNegativeNumber(num).empty());
+    num = "+0.5";
+    EXPECT_TRUE(CLI::NonNegativeNumber(num).empty());
+    num = "-1";
+    EXPECT_FALSE(CLI::NonNegativeNumber(num).empty());
+    num = "-1.5";
+    EXPECT_FALSE(CLI::NonNegativeNumber(num).empty());
+    num = "a";
+    EXPECT_FALSE(CLI::NonNegativeNumber(num).empty());
 }
 
 TEST(Validators, NumberValidator) {
@@ -338,7 +442,7 @@ TEST(Validators, CombinedOrRange) {
 TEST(Validators, CombinedPaths) {
     std::string myfile{"TestFileNotUsed.txt"};
     EXPECT_FALSE(CLI::ExistingFile(myfile).empty());
-    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a')); // create file
+    bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a'));  // create file
     EXPECT_TRUE(ok);
 
     std::string dir{"../tests"};
@@ -390,7 +494,7 @@ TEST(Validators, ProgramNameSplit) {
     EXPECT_EQ(res.second, "this is a bunch of extra stuff");
 
     res = CLI::detail::split_program_name("./program_name    this is a bunch of extra stuff  ");
-    EXPECT_EQ(res.first, "./program_name"); // test sectioning of first argument even if it can't detect the file
+    EXPECT_EQ(res.first, "./program_name");  // test sectioning of first argument even if it can't detect the file
     EXPECT_EQ(res.second, "this is a bunch of extra stuff");
 
     res = CLI::detail::split_program_name(std::string("  ./") + std::string(myfile) + "    ");
@@ -399,8 +503,8 @@ TEST(Validators, ProgramNameSplit) {
 }
 
 TEST(CheckedMultiply, Int) {
-    int a = 10;
-    int b = -20;
+    int a{10};
+    int b{-20};
     ASSERT_TRUE(CLI::detail::checked_multiply(a, b));
     ASSERT_EQ(a, -200);
 
@@ -480,8 +584,8 @@ TEST(CheckedMultiply, Int) {
 }
 
 TEST(CheckedMultiply, SizeT) {
-    size_t a = 10;
-    size_t b = 20;
+    std::size_t a = 10;
+    std::size_t b = 20;
     ASSERT_TRUE(CLI::detail::checked_multiply(a, b));
     ASSERT_EQ(a, 200u);
 
@@ -495,77 +599,77 @@ TEST(CheckedMultiply, SizeT) {
     ASSERT_TRUE(CLI::detail::checked_multiply(a, b));
     ASSERT_EQ(a, 0u);
 
-    a = std::numeric_limits<size_t>::max();
+    a = std::numeric_limits<std::size_t>::max();
     b = 1u;
     ASSERT_TRUE(CLI::detail::checked_multiply(a, b));
-    ASSERT_EQ(a, std::numeric_limits<size_t>::max());
+    ASSERT_EQ(a, std::numeric_limits<std::size_t>::max());
 
-    a = std::numeric_limits<size_t>::max();
+    a = std::numeric_limits<std::size_t>::max();
     b = 2u;
     ASSERT_FALSE(CLI::detail::checked_multiply(a, b));
-    ASSERT_EQ(a, std::numeric_limits<size_t>::max());
+    ASSERT_EQ(a, std::numeric_limits<std::size_t>::max());
 
-    a = std::numeric_limits<size_t>::max();
-    b = std::numeric_limits<size_t>::max();
+    a = std::numeric_limits<std::size_t>::max();
+    b = std::numeric_limits<std::size_t>::max();
     ASSERT_FALSE(CLI::detail::checked_multiply(a, b));
-    ASSERT_EQ(a, std::numeric_limits<size_t>::max());
+    ASSERT_EQ(a, std::numeric_limits<std::size_t>::max());
 
-    a = std::numeric_limits<size_t>::max() / 100;
+    a = std::numeric_limits<std::size_t>::max() / 100;
     b = 99u;
     ASSERT_TRUE(CLI::detail::checked_multiply(a, b));
-    ASSERT_EQ(a, std::numeric_limits<size_t>::max() / 100u * 99u);
+    ASSERT_EQ(a, std::numeric_limits<std::size_t>::max() / 100u * 99u);
 }
 
 TEST(CheckedMultiply, Float) {
-    float a = 10;
-    float b = 20;
+    float a{10.0F};
+    float b{20.0F};
     ASSERT_TRUE(CLI::detail::checked_multiply(a, b));
     ASSERT_FLOAT_EQ(a, 200);
 
-    a = 0;
-    b = 20;
+    a = 0.0F;
+    b = 20.0F;
     ASSERT_TRUE(CLI::detail::checked_multiply(a, b));
     ASSERT_FLOAT_EQ(a, 0);
 
     a = INFINITY;
-    b = 20;
+    b = 20.0F;
     ASSERT_TRUE(CLI::detail::checked_multiply(a, b));
     ASSERT_FLOAT_EQ(a, INFINITY);
 
-    a = 2;
+    a = 2.0F;
     b = -INFINITY;
     ASSERT_TRUE(CLI::detail::checked_multiply(a, b));
     ASSERT_FLOAT_EQ(a, -INFINITY);
 
-    a = std::numeric_limits<float>::max() / 100;
-    b = 1;
+    a = std::numeric_limits<float>::max() / 100.0F;
+    b = 1.0F;
     ASSERT_TRUE(CLI::detail::checked_multiply(a, b));
-    ASSERT_FLOAT_EQ(a, std::numeric_limits<float>::max() / 100);
+    ASSERT_FLOAT_EQ(a, std::numeric_limits<float>::max() / 100.0F);
 
-    a = std::numeric_limits<float>::max() / 100;
-    b = 99;
+    a = std::numeric_limits<float>::max() / 100.0F;
+    b = 99.0F;
     ASSERT_TRUE(CLI::detail::checked_multiply(a, b));
-    ASSERT_FLOAT_EQ(a, std::numeric_limits<float>::max() / 100 * 99);
+    ASSERT_FLOAT_EQ(a, std::numeric_limits<float>::max() / 100.0F * 99.0F);
 
-    a = std::numeric_limits<float>::max() / 100;
+    a = std::numeric_limits<float>::max() / 100.0F;
     b = 101;
     ASSERT_FALSE(CLI::detail::checked_multiply(a, b));
-    ASSERT_FLOAT_EQ(a, std::numeric_limits<float>::max() / 100);
+    ASSERT_FLOAT_EQ(a, std::numeric_limits<float>::max() / 100.0F);
 
-    a = std::numeric_limits<float>::max() / 100;
+    a = std::numeric_limits<float>::max() / 100.0F;
     b = -99;
     ASSERT_TRUE(CLI::detail::checked_multiply(a, b));
-    ASSERT_FLOAT_EQ(a, std::numeric_limits<float>::max() / 100 * -99);
+    ASSERT_FLOAT_EQ(a, std::numeric_limits<float>::max() / 100.0F * -99.0F);
 
-    a = std::numeric_limits<float>::max() / 100;
+    a = std::numeric_limits<float>::max() / 100.0F;
     b = -101;
     ASSERT_FALSE(CLI::detail::checked_multiply(a, b));
-    ASSERT_FLOAT_EQ(a, std::numeric_limits<float>::max() / 100);
+    ASSERT_FLOAT_EQ(a, std::numeric_limits<float>::max() / 100.0F);
 }
 
 TEST(CheckedMultiply, Double) {
-    double a = 10;
-    double b = 20;
+    double a{10.0F};
+    double b{20.0F};
     ASSERT_TRUE(CLI::detail::checked_multiply(a, b));
     ASSERT_DOUBLE_EQ(a, 200);
 
@@ -618,7 +722,7 @@ TEST(AppHelper, TempfileCreated) {
 
         EXPECT_FALSE(CLI::ExistingFile(myfile).empty());
 
-        bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a')); // create file
+        bool ok = static_cast<bool>(std::ofstream(myfile.c_str()).put('a'));  // create file
         EXPECT_TRUE(ok);
         EXPECT_TRUE(CLI::ExistingFile(name).empty());
         EXPECT_THROW({ TempFile otherfile(name); }, std::runtime_error);
@@ -798,7 +902,7 @@ TEST(Types, TypeName) {
     std::string int_name = CLI::detail::type_name<int>();
     EXPECT_EQ("INT", int_name);
 
-    std::string int2_name = CLI::detail::type_name<short>();
+    std::string int2_name = CLI::detail::type_name<std::int16_t>();
     EXPECT_EQ("INT", int2_name);
 
     std::string uint_name = CLI::detail::type_name<unsigned char>();
@@ -813,19 +917,46 @@ TEST(Types, TypeName) {
     vector_name = CLI::detail::type_name<std::vector<double>>();
     EXPECT_EQ("FLOAT", vector_name);
 
+    static_assert(CLI::detail::classify_object<std::pair<int, std::string>>::value ==
+                      CLI::detail::object_category::tuple_value,
+                  "pair<int,string> does not read like a tuple");
+
+    static_assert(CLI::detail::classify_object<std::tuple<std::string, double>>::value ==
+                      CLI::detail::object_category::tuple_value,
+                  "tuple<string,double> does not read like a tuple");
+
+    std::string pair_name = CLI::detail::type_name<std::vector<std::pair<int, std::string>>>();
+    EXPECT_EQ("[INT,TEXT]", pair_name);
+
     vector_name = CLI::detail::type_name<std::vector<std::vector<unsigned char>>>();
     EXPECT_EQ("UINT", vector_name);
-    auto vclass = CLI::detail::classify_object<std::tuple<double>>::value;
-    EXPECT_EQ(vclass, CLI::detail::objCategory::number_constructible);
+
+    auto vclass = CLI::detail::classify_object<std::vector<std::vector<unsigned char>>>::value;
+    EXPECT_EQ(vclass, CLI::detail::object_category::container_value);
+
+    auto tclass = CLI::detail::classify_object<std::tuple<double>>::value;
+    EXPECT_EQ(tclass, CLI::detail::object_category::number_constructible);
 
     std::string tuple_name = CLI::detail::type_name<std::tuple<double>>();
     EXPECT_EQ("FLOAT", tuple_name);
 
     static_assert(CLI::detail::classify_object<std::tuple<int, std::string>>::value ==
-                      CLI::detail::objCategory::tuple_value,
+                      CLI::detail::object_category::tuple_value,
                   "tuple<int,string> does not read like a tuple");
     tuple_name = CLI::detail::type_name<std::tuple<int, std::string>>();
     EXPECT_EQ("[INT,TEXT]", tuple_name);
+
+    tuple_name = CLI::detail::type_name<std::tuple<const int, std::string>>();
+    EXPECT_EQ("[INT,TEXT]", tuple_name);
+
+    tuple_name = CLI::detail::type_name<const std::tuple<int, std::string>>();
+    EXPECT_EQ("[INT,TEXT]", tuple_name);
+
+    tuple_name = CLI::detail::type_name<std::tuple<std::string, double>>();
+    EXPECT_EQ("[TEXT,FLOAT]", tuple_name);
+
+    tuple_name = CLI::detail::type_name<const std::tuple<std::string, double>>();
+    EXPECT_EQ("[TEXT,FLOAT]", tuple_name);
 
     tuple_name = CLI::detail::type_name<std::tuple<int, std::string, double>>();
     EXPECT_EQ("[INT,TEXT,FLOAT]", tuple_name);
@@ -850,11 +981,13 @@ TEST(Types, TypeName) {
     EXPECT_EQ("ENUM", enum_name);
 
     vclass = CLI::detail::classify_object<std::tuple<test>>::value;
-    EXPECT_EQ(vclass, CLI::detail::objCategory::tuple_value);
-    static_assert(CLI::detail::classify_object<std::tuple<test>>::value == CLI::detail::objCategory::tuple_value,
+    EXPECT_EQ(vclass, CLI::detail::object_category::tuple_value);
+    static_assert(CLI::detail::classify_object<std::tuple<test>>::value == CLI::detail::object_category::tuple_value,
                   "tuple<test> does not classify as a tuple");
     std::string enum_name2 = CLI::detail::type_name<std::tuple<test>>();
     EXPECT_EQ("ENUM", enum_name2);
+    std::string umapName = CLI::detail::type_name<std::unordered_map<int, std::tuple<std::string, double>>>();
+    EXPECT_EQ("[INT,[TEXT,FLOAT]]", umapName);
 }
 
 TEST(Types, OverflowSmall) {
@@ -938,12 +1071,12 @@ TEST(Types, LexicalCastParsable) {
 
     std::complex<double> output;
     EXPECT_TRUE(CLI::detail::lexical_cast(input, output));
-    EXPECT_DOUBLE_EQ(output.real(), 4.2); // Doing this in one go sometimes has trouble
-    EXPECT_DOUBLE_EQ(output.imag(), 7.3); // on clang + c++4.8 due to missing const
+    EXPECT_DOUBLE_EQ(output.real(), 4.2);  // Doing this in one go sometimes has trouble
+    EXPECT_DOUBLE_EQ(output.imag(), 7.3);  // on clang + gcc 4.8 due to missing const
 
     EXPECT_TRUE(CLI::detail::lexical_cast("2.456", output));
-    EXPECT_DOUBLE_EQ(output.real(), 2.456); // Doing this in one go sometimes has trouble
-    EXPECT_DOUBLE_EQ(output.imag(), 0.0);   // on clang + c++4.8 due to missing const
+    EXPECT_DOUBLE_EQ(output.real(), 2.456);  // Doing this in one go sometimes has trouble
+    EXPECT_DOUBLE_EQ(output.imag(), 0.0);    // on clang + gcc 4.8 due to missing const
 
     EXPECT_FALSE(CLI::detail::lexical_cast(fail_input, output));
     EXPECT_FALSE(CLI::detail::lexical_cast(extra_input, output));
@@ -957,8 +1090,8 @@ TEST(Types, LexicalCastEnum) {
     EXPECT_EQ(output, v5);
 
     EXPECT_FALSE(CLI::detail::lexical_cast("invalid", output));
-    enum class t2 : uint64_t { enum1 = 65, enum2 = 45667, enum3 = 9999999999999 };
-    t2 output2;
+    enum class t2 : std::uint64_t { enum1 = 65, enum2 = 45667, enum3 = 9999999999999 };
+    t2 output2{t2::enum2};
     EXPECT_TRUE(CLI::detail::lexical_cast("65", output2));
     EXPECT_EQ(output2, t2::enum1);
 
@@ -970,7 +1103,7 @@ TEST(Types, LexicalCastEnum) {
 
 TEST(Types, LexicalConversionDouble) {
     CLI::results_t input = {"9.12"};
-    long double x;
+    long double x{0.0};
     bool res = CLI::detail::lexical_conversion<long double, double>(input, x);
     EXPECT_TRUE(res);
     EXPECT_FLOAT_EQ((float)9.12, (float)x);
@@ -982,7 +1115,7 @@ TEST(Types, LexicalConversionDouble) {
 
 TEST(Types, LexicalConversionDoubleTuple) {
     CLI::results_t input = {"9.12"};
-    std::tuple<double> x;
+    std::tuple<double> x{0.0};
     bool res = CLI::detail::lexical_conversion<decltype(x), decltype(x)>(input, x);
     EXPECT_TRUE(res);
     EXPECT_DOUBLE_EQ(9.12, std::get<0>(x));
@@ -1017,7 +1150,7 @@ static_assert(CLI::detail::is_tuple_like<std::tuple<double, int, double>>::value
 TEST(Types, LexicalConversionTuple2) {
     CLI::results_t input = {"9.12", "19"};
 
-    std::tuple<double, int> x;
+    std::tuple<double, int> x{0.0, 0};
     static_assert(CLI::detail::is_tuple_like<decltype(x)>::value,
                   "tuple type must have is_tuple_like trait to be true");
     bool res = CLI::detail::lexical_conversion<decltype(x), decltype(x)>(input, x);
@@ -1116,6 +1249,26 @@ TEST(Types, LexicalConversionComplex) {
     EXPECT_EQ(x.real(), 5.1);
     EXPECT_EQ(x.imag(), 3.5);
 }
+
+static_assert(CLI::detail::is_wrapper<std::vector<double>>::value, "vector double should be a wrapper");
+static_assert(CLI::detail::is_wrapper<std::vector<std::string>>::value, "vector string should be a wrapper");
+static_assert(CLI::detail::is_wrapper<std::string>::value, "string should be a wrapper");
+static_assert(!CLI::detail::is_wrapper<double>::value, "double should not be a wrapper");
+
+static_assert(CLI::detail::is_mutable_container<std::vector<double>>::value, "vector class should be a container");
+static_assert(CLI::detail::is_mutable_container<std::vector<std::string>>::value, "vector class should be a container");
+static_assert(!CLI::detail::is_mutable_container<std::string>::value, "string should be a container");
+static_assert(!CLI::detail::is_mutable_container<double>::value, "double should not be a container");
+static_assert(!CLI::detail::is_mutable_container<std::array<double, 5>>::value, "array should not be a container");
+
+static_assert(CLI::detail::is_mutable_container<std::vector<int>>::value, "vector int should be a container");
+
+static_assert(CLI::detail::is_readable_container<std::vector<int> &>::value,
+              "vector int & should be a readable container");
+static_assert(CLI::detail::is_readable_container<const std::vector<int>>::value,
+              "const vector int should be a readable container");
+static_assert(CLI::detail::is_readable_container<const std::vector<int> &>::value,
+              "const vector int & should be a readable container");
 
 TEST(FixNewLines, BasicCheck) {
     std::string input = "one\ntwo";
